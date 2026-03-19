@@ -140,8 +140,7 @@ class CapturePanel(QWidget):
         self._auto_scroll_btn.setChecked(True)
         self._auto_scroll_btn.setStyleSheet("""
 QPushButton:hover {
-    background-color: rgba(200, 208, 224, 0.3);
-    border: 1px solid #c8d0e0;
+    background-color: rgba(200, 208, 224, 0.15);
 }
 """)
         self._auto_scroll_btn.clicked.connect(self._toggle_auto_scroll)

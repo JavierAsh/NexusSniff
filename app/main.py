@@ -40,15 +40,14 @@ def main():
     from PyQt6.QtCore import QSettings
     settings = QSettings("NexusSniff", "NexusSniff")
     current_theme = settings.value("theme", "dark")
-    font_size = int(settings.value("font_size", 13))
 
     # Icono global de la aplicación
     logo_path = Path(__file__).parent / "resources" / "icons" / "logo.png"
     if logo_path.exists():
         app.setWindowIcon(QIcon(str(logo_path)))
 
-    # Fuente global respetando el tamaño configurado
-    default_font = QFont("Segoe UI", font_size)
+    # Fuente global
+    default_font = QFont("Segoe UI", 13)
     default_font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
     app.setFont(default_font)
 
