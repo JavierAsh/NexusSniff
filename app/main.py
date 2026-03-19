@@ -36,7 +36,7 @@ def main():
 
     app = QApplication(sys.argv)
     app.setApplicationName("NexusSniff")
-    app.setApplicationVersion("1.0.0")
+    app.setApplicationVersion("1.2.0")
     app.setOrganizationName("NexusSniff")
 
     # Cargar preferencias desde QSettings

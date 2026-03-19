@@ -975,3 +975,117 @@ QSpinBox::up-button, QSpinBox::down-button {
     border: none;
     width: 20px;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   SETTINGS DIALOG
+   ═══════════════════════════════════════════════════════════════ */
+
+QWidget#settingsSidebar {
+    background-color: #0a0e18;
+    border-right: 1px solid #1a2035;
+}
+
+QWidget#settingsContent {
+    background-color: #080b12;
+}
+
+QLabel#settingsSidebarTitle {
+    color: #8892a8;
+    background: transparent;
+    padding-left: 6px;
+}
+
+QPushButton#settingsSidebarBtn {
+    background-color: transparent;
+    border: none;
+    border-radius: 8px;
+    color: #8892a8;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    padding: 8px 12px;
+}
+
+QPushButton#settingsSidebarBtn:hover {
+    background-color: rgba(13, 185, 242, 0.08);
+    color: #c8cfe0;
+}
+
+QPushButton#settingsSidebarBtn:checked {
+    background-color: rgba(13, 185, 242, 0.15);
+    color: #0db9f2;
+    border-left: 3px solid #0db9f2;
+}
+
+QPushButton#settingsResetBtn {
+    background-color: transparent;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 8px;
+    color: #ef4444;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 12px;
+}
+
+QPushButton#settingsResetBtn:hover {
+    background-color: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+QFrame#settingsVSep {
+    background-color: #1a2035;
+}
+
+QFrame#settingsFooterSep {
+    background-color: #1a2035;
+    margin: 8px 0;
+}
+
+QLabel#settingsSectionTitle {
+    color: #e8ecf4;
+    background: transparent;
+}
+
+QLabel#settingsSectionSubtitle {
+    color: #5a6478;
+    font-size: 12px;
+    background: transparent;
+}
+
+QLabel#settingsInfoLabel {
+    color: #5a6478;
+    font-weight: 600;
+    font-size: 12px;
+    background: transparent;
+}
+
+QLabel#settingsInfoValue {
+    color: #c8cfe0;
+    font-family: "JetBrains Mono", "Consolas", monospace;
+    font-size: 12px;
+    background: transparent;
+}
+
+QLabel#settingsDirStatus {
+    color: #5a6478;
+    font-size: 11px;
+    background: transparent;
+}
+
+QLabel#settingsDirOk {
+    color: #10b981;
+    font-size: 11px;
+    background: transparent;
+}
+
+QLabel#settingsDirWarn {
+    color: #f59e0b;
+    font-size: 11px;
+    background: transparent;
+}
+
+QLabel#settingsDirError {
+    color: #ef4444;
+    font-size: 11px;
+    background: transparent;
+}

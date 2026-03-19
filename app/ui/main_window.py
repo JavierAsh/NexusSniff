@@ -313,7 +313,7 @@ class MainWindow(QMainWindow):
         statusbar.addWidget(self._status_pps_container)
 
         # Versión a la derecha
-        version_label = QLabel("NexusSniff v1.1.0")
+        version_label = QLabel("NexusSniff v1.2.0")
         version_label.setObjectName("statusVersion")
         statusbar.addPermanentWidget(version_label)
 

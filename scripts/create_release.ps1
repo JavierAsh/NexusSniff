@@ -13,7 +13,7 @@ entregar a los usuarios.
 
 $ProjectRoot = (Get-Item $PSScriptRoot).Parent.FullName
 $ReleaseDir = Join-Path $ProjectRoot "release_build"
-$ReleaseZip = Join-Path $ProjectRoot "NexusSniff_v1.0.0.zip"
+$ReleaseZip = Join-Path $ProjectRoot "NexusSniff_v1.2.0.zip"
 
 Write-Host "Preparando release para distribución comercial..." -ForegroundColor Cyan
 
