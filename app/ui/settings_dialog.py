@@ -11,6 +11,7 @@ from PyQt6.QtCore import Qt, QSettings
 from PyQt6.QtGui import QFont
 
 from app.main import load_theme
+from app.ui.icons import create_vector_icon
 
 
 class SettingsDialog(QDialog):
@@ -75,8 +76,10 @@ class SettingsDialog(QDialog):
         self._export_dir.setPlaceholderText("Directorio de capturas...")
         dir_layout.addWidget(self._export_dir)
 
-        browse_btn = QPushButton("...")
-        browse_btn.setFixedWidth(40)
+        browse_btn = QPushButton()
+        browse_btn.setIcon(create_vector_icon("folder", "#c8d0e0", 16))
+        browse_btn.setFixedSize(24, 24)
+        browse_btn.setFlat(True)
         browse_btn.clicked.connect(self._browse_export_dir)
         dir_layout.addWidget(browse_btn)
 
@@ -110,8 +113,13 @@ class SettingsDialog(QDialog):
     def _on_theme_changed(self, theme_text: str):
         """Aplica el tema instantáneamente al cambiar la selección."""
         theme_file = "light" if "Light Mode" in theme_text else "dark"
-        load_theme(QApplication.instance(), theme_file)
-        self.setStyleSheet(QApplication.instance().styleSheet())
+        theme_content = load_theme(QApplication.instance(), theme_file)
+        self.setStyleSheet(theme_content)
+        # Forzar reaplicación de estilos
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.update()
+        self.repaint()
 
     def get_settings(self) -> dict:
         """Devuelve la configuración actual."""

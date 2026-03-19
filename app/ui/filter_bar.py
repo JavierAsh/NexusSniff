@@ -114,6 +114,7 @@ class FilterBar(QWidget):
         expression = self.get_filter()
         self._applied_filter = expression
         self._apply_btn.setEnabled(False)
+        self._clear_btn.setEnabled(bool(expression))
         self.filter_applied.emit(expression)
 
     def _clear_filter(self):
@@ -122,6 +123,7 @@ class FilterBar(QWidget):
             self._applied_filter = ""
             self.filter_cleared.emit()
         self._filter_combo.setCurrentIndex(0)
+        self._clear_btn.setEnabled(False)
 
     def get_filter(self) -> str:
         """Devuelve la expresión de filtro actual."""

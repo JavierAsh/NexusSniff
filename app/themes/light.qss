@@ -805,6 +805,10 @@ QPushButton#clearFilterBtn:pressed {
     background-color: rgba(220, 38, 38, 0.15);
 }
 
+QPushButton#clearFilterBtn:disabled {
+    opacity: 0.4;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    TOOLTIPS
    ═══════════════════════════════════════════════════════════════ */

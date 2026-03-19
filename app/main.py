@@ -14,16 +14,19 @@ from PyQt6.QtGui import QFont, QFontDatabase, QIcon
 from PyQt6.QtCore import Qt
 
 
-def load_theme(app: QApplication, theme_name: str = "dark"):
+def load_theme(app: QApplication, theme_name: str = "dark") -> str:
     """Carga la hoja de estilos."""
     theme_path = Path(__file__).parent / "themes" / f"{theme_name}.qss"
 
     if theme_path.exists():
         with open(theme_path, 'r', encoding='utf-8') as f:
-            app.setStyleSheet(f.read())
-        print(f"[NexusSniff] Tema cargado: {theme_name}")
+            content = f.read()
+            app.setStyleSheet(content)
+            print(f"[NexusSniff] Tema cargado: {theme_name}")
+            return content
     else:
         print(f"[NexusSniff] Advertencia: No se encontró {theme_path}")
+        return ""
 
 
 def main():
