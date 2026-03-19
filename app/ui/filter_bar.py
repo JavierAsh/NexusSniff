@@ -26,20 +26,22 @@ FILTER_PRESETS = [
     ("udp",                       "UDP — Solo paquetes UDP"),
     ("icmp",                      "ICMP — Solo paquetes ICMP"),
     ("arp",                       "ARP — Solo paquetes ARP"),
+    ("ip",                        "IPv4 — Paquetes IPv4"),
+    ("ip6",                       "IPv6 — Paquetes IPv6"),
+    ("vlan",                      "VLAN — Paquetes con VLAN"),
 
-    # --- Protocolos de aplicación ---
+    # --- Aplicaciones comunes ---
     ("tcp port 80",               "HTTP — Puerto 80"),
     ("tcp port 443",              "HTTPS — Puerto 443"),
     ("tcp port 53 or udp port 53","DNS — Puerto 53 (TCP/UDP)"),
     ("tcp port 22",               "SSH — Puerto 22"),
     ("tcp port 21",               "FTP — Puerto 21"),
-
-    # --- Dirección ---
-    ("src host ",                 "Origen — src host <IP>"),
-    ("dst host ",                 "Destino — dst host <IP>"),
-    ("host ",                     "Host — host <IP>"),
+    ("tcp port 25",               "SMTP — Puerto 25"),
+    ("udp port 67 or udp port 68","DHCP — Puertos 67/68 (UDP)"),
 
     # --- Tamaño ---
+    ("greater 1500",              "Paquetes grandes (> 1500 bytes)"),
+    ("less 64",                   "Paquetes pequeños (< 64 bytes)"),
     ("greater 1000",              "Paquetes > 1 KB"),
     ("less 100",                  "Paquetes < 100 bytes"),
 ]
