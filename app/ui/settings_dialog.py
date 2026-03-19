@@ -72,14 +72,18 @@ class SettingsDialog(QDialog):
         export_layout = QFormLayout(export_group)
 
         dir_layout = QHBoxLayout()
+        dir_layout.setSpacing(8)
+        dir_layout.setContentsMargins(0, 0, 0, 0)
+
         self._export_dir = QLineEdit()
         self._export_dir.setPlaceholderText("Directorio de capturas...")
+        self._export_dir.setFixedHeight(36)
         dir_layout.addWidget(self._export_dir)
 
         browse_btn = QPushButton()
-        browse_btn.setIcon(create_vector_icon("folder", "#c8d0e0", 16))
-        browse_btn.setFixedSize(24, 24)
-        browse_btn.setFlat(True)
+        browse_btn.setObjectName("browseButton")
+        browse_btn.setIcon(create_vector_icon("folder", "#c8d0e0", 18))
+        browse_btn.setFixedSize(36, 36)
         browse_btn.clicked.connect(self._browse_export_dir)
         dir_layout.addWidget(browse_btn)
 

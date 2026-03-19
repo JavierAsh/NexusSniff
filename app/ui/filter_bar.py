@@ -101,6 +101,7 @@ class FilterBar(QWidget):
         self._clear_btn.setIcon(create_vector_icon("clear_x", "#8892a8", 14))
         self._clear_btn.setFixedSize(36, 36)
         self._clear_btn.setToolTip("Limpiar filtro")
+        self._clear_btn.setEnabled(False)  # Inicialmente deshabilitado
         self._clear_btn.clicked.connect(self._clear_filter)
         layout.addWidget(self._clear_btn)
 
