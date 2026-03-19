@@ -192,14 +192,6 @@ class MainWindow(QMainWindow):
         header_layout.setContentsMargins(20, 0, 20, 0)
         header_layout.setSpacing(8)
 
-        # Logo kleine en header
-        header_logo = QLabel()
-        logo_path = Path(__file__).parent.parent / "resources" / "icons" / "logo_icon.png"
-        if logo_path.exists():
-            pixmap = QPixmap(str(logo_path)).scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            header_logo.setPixmap(pixmap)
-        header_layout.addWidget(header_logo)
-
         app_title = QLabel("NexusSniff")
         app_title.setObjectName("headerTitle")
         app_title.setFont(QFont("Segoe UI", 15, QFont.Weight.Bold))

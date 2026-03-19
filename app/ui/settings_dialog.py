@@ -23,6 +23,10 @@ class SettingsDialog(QDialog):
         self._settings = QSettings("NexusSniff", "NexusSniff")
         self._setup_ui()
         self._load_settings()
+        # Asegurar que el diálogo arranca con el mismo tema activo
+        app = QApplication.instance()
+        if app is not None:
+            self.setStyleSheet(app.styleSheet())
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -109,6 +113,15 @@ class SettingsDialog(QDialog):
         if directory:
             self._export_dir.setText(directory)
 
+    def _apply_font_size(self, size: int):
+        """Aplica el tamaño de fuente globalmente a la aplicación."""
+        app = QApplication.instance()
+        if app is None:
+            return
+        font = app.font()
+        font.setPointSize(size)
+        app.setFont(font)
+
     def _on_theme_changed(self, theme_text: str):
         """Aplica el tema instantáneamente al cambiar la selección."""
         theme_file = "light" if "Light Mode" in theme_text else "dark"
@@ -133,7 +146,8 @@ class SettingsDialog(QDialog):
         if idx >= 0:
             self._theme_combo.setCurrentIndex(idx)
         
-        self._font_size_spin.setValue(int(self._settings.value('font_size', 13)))
+        font_size = int(self._settings.value('font_size', 13))
+        self._font_size_spin.setValue(font_size)
         self._buffer_size_spin.setValue(int(self._settings.value('buffer_size', 65536)))
         self._snap_len_spin.setValue(int(self._settings.value('snap_len', 65535)))
         
@@ -143,9 +157,14 @@ class SettingsDialog(QDialog):
         
         self._export_dir.setText(self._settings.value('export_dir', ''))
 
+        # Aplicar el tamaño de fuente cargado a la aplicación
+        self._apply_font_size(self._font_size_spin.value())
+
     def accept(self):
         """Guarda la configuración y cierra."""
         conf = self.get_settings()
         for k, v in conf.items():
             self._settings.setValue(k, v)
+        # Aplicar inmediatamente el tamaño de fuente elegido
+        self._apply_font_size(conf['font_size'])
         super().accept()

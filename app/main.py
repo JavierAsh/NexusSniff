@@ -36,21 +36,22 @@ def main():
     app.setApplicationVersion("1.0.0")
     app.setOrganizationName("NexusSniff")
 
+    # Cargar preferencias desde QSettings
+    from PyQt6.QtCore import QSettings
+    settings = QSettings("NexusSniff", "NexusSniff")
+    current_theme = settings.value("theme", "dark")
+    font_size = int(settings.value("font_size", 13))
+
     # Icono global de la aplicación
     logo_path = Path(__file__).parent / "resources" / "icons" / "logo.png"
     if logo_path.exists():
         app.setWindowIcon(QIcon(str(logo_path)))
 
-    # Fuente global
-    default_font = QFont("Segoe UI", 11)
+    # Fuente global respetando el tamaño configurado
+    default_font = QFont("Segoe UI", font_size)
     default_font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
     app.setFont(default_font)
 
-    # Cargar tema desde QSettings
-    from PyQt6.QtCore import QSettings
-    settings = QSettings("NexusSniff", "NexusSniff")
-    current_theme = settings.value("theme", "dark")
-    
     # Manejar los nombres amigables del combobox si están guardados así
     if "Light Mode" in current_theme:
         theme_file = "light"

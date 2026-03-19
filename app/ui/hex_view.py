@@ -187,6 +187,9 @@ class HexView(QWidget):
                     char = chr(byte) if 32 <= byte < 127 else '·'
                     fmt = highlight_fmt if is_highlighted else ascii_fmt
                     cursor.insertText(char, fmt)
+                else:
+                    # Mantener ancho fijo de la columna ASCII incluso en la última línea.
+                    cursor.insertText(" ", ascii_fmt)
 
             cursor.insertText("\n")
 
