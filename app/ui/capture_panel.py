@@ -102,6 +102,7 @@ class CapturePanel(QWidget):
         self._clear_btn = QPushButton("Limpiar")
         self._clear_btn.setIcon(create_vector_icon("trash", "#c8d0e0", 18))
         self._clear_btn.setMinimumHeight(36)
+        self._clear_btn.setEnabled(False)  # Deshabilitado inicialmente
         self._clear_btn.clicked.connect(self._clear_packets)
         controls_layout.addWidget(self._clear_btn)
 
@@ -109,6 +110,7 @@ class CapturePanel(QWidget):
         self._export_btn = QPushButton("Exportar")
         self._export_btn.setIcon(create_vector_icon("folder", "#c8d0e0", 18))
         self._export_btn.setMinimumHeight(36)
+        self._export_btn.setEnabled(False)  # Deshabilitado inicialmente
         self._export_btn.clicked.connect(self._export_capture)
         controls_layout.addWidget(self._export_btn)
 
@@ -136,6 +138,12 @@ class CapturePanel(QWidget):
         self._auto_scroll_btn.setMaximumHeight(28)
         self._auto_scroll_btn.setCheckable(True)
         self._auto_scroll_btn.setChecked(True)
+        self._auto_scroll_btn.setStyleSheet("""
+QPushButton:hover {
+    background-color: rgba(200, 208, 224, 0.3);
+    border: 1px solid #c8d0e0;
+}
+""")
         self._auto_scroll_btn.clicked.connect(self._toggle_auto_scroll)
         status_row.addWidget(self._auto_scroll_btn)
 
@@ -197,6 +205,12 @@ class CapturePanel(QWidget):
         self._splitter.setSizes([400, 300])
         layout.addWidget(self._splitter, 1)
 
+    def _update_buttons(self):
+        """Actualiza el estado habilitado de los botones según si hay paquetes."""
+        has_packets = self._packet_model.packet_count() > 0
+        self._clear_btn.setEnabled(has_packets)
+        self._export_btn.setEnabled(has_packets)
+
     def _load_interfaces(self):
         """Carga las interfaces de red disponibles."""
         try:
@@ -250,6 +264,9 @@ class CapturePanel(QWidget):
         self._hex_view.clear()
         self._packet_count_label.setText("0 paquetes capturados")
         self._selected_row = -1
+
+        # Actualizar estado de botones
+        self._update_buttons()
 
     def _export_capture(self):
         """Exporta los paquetes capturados con opciones de formato."""
@@ -324,6 +341,9 @@ class CapturePanel(QWidget):
         self._packet_model.add_packets(packets)
         count = self._packet_model.packet_count()
         self._packet_count_label.setText(f"{count:,} paquetes capturados")
+
+        # Actualizar estado de botones
+        self._update_buttons()
 
         # Solo hacer scroll si auto-scroll está activado Y no hay selección activa
         if self._auto_scroll and self._selected_row < 0:
