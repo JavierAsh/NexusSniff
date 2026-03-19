@@ -48,3 +48,8 @@ docker-data/
 
 # Antigravity
 .antigravity/
+
+# Release
+release_build/
+*.zip
+*.spec
