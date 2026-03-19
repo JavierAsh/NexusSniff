@@ -103,18 +103,18 @@ class HexView(QWidget):
                 'offset': QColor('#5a6478'),
                 'hex':    QColor('#c8cfe0'),
                 'ascii':  QColor('#0db9f2'),
-                'sep':    QColor('#2a3050'),
+                'sep':    QColor('#3f4b66'), # Un poco más claro para mejor visibilidad
             }
         else:
             return {
                 'offset': QColor('#64748b'),
                 'hex':    QColor('#1e293b'),
                 'ascii':  QColor('#0ea5e9'),
-                'sep':    QColor('#cbd5e1'),
+                'sep':    QColor('#94a3b8'), # Slate para modo claro
             }
 
     def _render(self):
-        """Renderiza los datos en formato hex dump."""
+        """Renderiza los datos en formato hex dump ultra-ordenado con segmentación clara."""
         if not self._raw_data:
             self._text_edit.clear()
             return
@@ -122,27 +122,43 @@ class HexView(QWidget):
         self._text_edit.clear()
         cursor = self._text_edit.textCursor()
         colors = self._get_theme_colors()
+        
+        # Tipografía monospace robusta
+        font = QFont("JetBrains Mono", 11)
+        if not font.exactMatch():
+            font = QFont("Consolas", 11)
+        font.setStyleHint(QFont.StyleHint.Monospace)
+        font.setFixedPitch(True)
+        self._text_edit.setFont(font)
 
-        # Formatos
-        offset_fmt = QTextCharFormat()
-        offset_fmt.setForeground(colors['offset'])
-        offset_fmt.setFontWeight(QFont.Weight.Bold)
+        # Formatos predefinidos
+        fmt_offset = QTextCharFormat()
+        fmt_offset.setForeground(colors['offset'])
+        fmt_offset.setFontWeight(QFont.Weight.Bold)
+        fmt_offset.setFont(font)
 
-        hex_fmt = QTextCharFormat()
-        hex_fmt.setForeground(colors['hex'])
+        fmt_hex = QTextCharFormat()
+        fmt_hex.setForeground(colors['hex'])
+        fmt_hex.setFont(font)
 
-        ascii_fmt = QTextCharFormat()
-        ascii_fmt.setForeground(colors['ascii'])
+        fmt_ascii = QTextCharFormat()
+        fmt_ascii.setForeground(colors['ascii'])
+        fmt_ascii.setFont(font)
 
-        separator_fmt = QTextCharFormat()
-        separator_fmt.setForeground(colors['sep'])
+        fmt_sep = QTextCharFormat()
+        fmt_sep.setForeground(colors['sep'])
+        fmt_sep.setFont(font)
 
+        # Formato de resaltado (capas)
         highlight_fmt = QTextCharFormat()
+        highlight_fmt.setFont(font)
         if self._highlighted_range:
             layer = self._highlighted_range[2]
-            color = self.LAYER_COLORS.get(layer, QColor('#0db9f2'))
-            highlight_fmt.setForeground(color)
-            highlight_fmt.setBackground(QColor(color.red(), color.green(), color.blue(), 40))
+            h_color = self.LAYER_COLORS.get(layer, QColor('#0db9f2'))
+            highlight_fmt.setForeground(h_color)
+            # Fondo sutil para destacar el bloque
+            bg_color = QColor(h_color.red(), h_color.green(), h_color.blue(), 50)
+            highlight_fmt.setBackground(bg_color)
             highlight_fmt.setFontWeight(QFont.Weight.Bold)
 
         bytes_per_line = 16
@@ -151,45 +167,47 @@ class HexView(QWidget):
         for offset in range(0, len(data), bytes_per_line):
             chunk = data[offset:offset + bytes_per_line]
 
-            # Offset (uppercase, 4 digits min)
-            cursor.insertText(f"{offset:04X}", offset_fmt)
-            cursor.insertText("    ", separator_fmt)
+            # 1. Offset
+            cursor.insertText(f"{offset:04X} ", fmt_offset)
+            
+            # 2. Separador visual inicial
+            cursor.insertText("│ ", fmt_sep)
 
-            # Hex bytes — con separador visual a los 8 bytes
+            # 3. Hex Bytes (segmentados cada 8)
             for i in range(bytes_per_line):
                 if i == 8:
-                    cursor.insertText(" ", separator_fmt)
+                    cursor.insertText(" ", fmt_sep) # Gap central
+                
                 if i < len(chunk):
-                    byte = chunk[i]
-                    byte_offset = offset + i
-                    is_highlighted = (
-                        self._highlighted_range is not None
-                        and self._highlighted_range[0] <= byte_offset < self._highlighted_range[1]
-                    )
-                    fmt = highlight_fmt if is_highlighted else hex_fmt
-                    cursor.insertText(f"{byte:02X} ", fmt)
+                    byte_val = chunk[i]
+                    byte_idx = offset + i
+                    is_h = (self._highlighted_range and 
+                            self._highlighted_range[0] <= byte_idx < self._highlighted_range[1])
+                    
+                    fmt = highlight_fmt if is_h else fmt_hex
+                    cursor.insertText(f"{byte_val:02X} ", fmt)
                 else:
-                    cursor.insertText("   ", hex_fmt)
+                    cursor.insertText("   ", fmt_hex) # Padding
 
-            cursor.insertText("  ", separator_fmt)
+            # 4. Separador visual central
+            cursor.insertText("│ ", fmt_sep)
 
-            # ASCII — con separador visual a los 8 bytes
+            # 5. Representación ASCII
             for i in range(bytes_per_line):
                 if i == 8:
-                    cursor.insertText(" ", separator_fmt)
+                    cursor.insertText(" ", fmt_sep) # Mantenemos gap para alineación vertical
+                
                 if i < len(chunk):
-                    byte = chunk[i]
-                    byte_offset = offset + i
-                    is_highlighted = (
-                        self._highlighted_range is not None
-                        and self._highlighted_range[0] <= byte_offset < self._highlighted_range[1]
-                    )
-                    char = chr(byte) if 32 <= byte < 127 else '·'
-                    fmt = highlight_fmt if is_highlighted else ascii_fmt
+                    byte_val = chunk[i]
+                    byte_idx = offset + i
+                    is_h = (self._highlighted_range and 
+                            self._highlighted_range[0] <= byte_idx < self._highlighted_range[1])
+                    
+                    char = chr(byte_val) if 32 <= byte_val < 127 else "·"
+                    fmt = highlight_fmt if is_h else fmt_ascii
                     cursor.insertText(char, fmt)
                 else:
-                    # Mantener ancho fijo de la columna ASCII incluso en la última línea.
-                    cursor.insertText(" ", ascii_fmt)
+                    cursor.insertText(" ", fmt_ascii) # Padding ASCII
 
             cursor.insertText("\n")
 
