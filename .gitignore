@@ -1,0 +1,50 @@
+# ══ NexusSniff .gitignore ══
+
+# Build
+build/
+cmake-build-*/
+*.pyd
+*.pdb
+*.obj
+*.lib
+*.exp
+*.ilk
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+*.egg
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+*.sln
+*.vcxproj*
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Entorno
+.env
+*.log
+
+# Docker
+docker-data/
+
+# Npcap SDK (incluir manualmente o instrucciones en README)
+# third_party/npcap-sdk/
+
+# Pybind11 se maneja como submodulo git
+# third_party/pybind11/
+
+# Antigravity
+.antigravity/

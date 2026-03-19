@@ -1,0 +1,60 @@
+# ══ NexusSniff — Docker Compose ══
+# PostgreSQL + ClickHouse + Redis para persistencia de datos.
+# Uso: docker-compose up -d
+
+version: "3.9"
+
+services:
+  # ── PostgreSQL: metadatos, sesiones, filtros, usuarios ──
+  postgres:
+    image: postgres:16-alpine
+    container_name: nexussniff-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nexussniff
+      POSTGRES_USER: nexus
+      POSTGRES_PASSWORD: nexus_secret_2024
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus -d nexussniff"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── ClickHouse: almacenamiento analítico de paquetes ──
+  clickhouse:
+    image: clickhouse/clickhouse-server:24-alpine
+    container_name: nexussniff-clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: nexussniff
+      CLICKHOUSE_USER: nexus
+      CLICKHOUSE_PASSWORD: nexus_click_2024
+    ports:
+      - "8123:8123"   # HTTP
+      - "9000:9000"   # Native
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  # ── Redis: cache de estadísticas en tiempo real ──
+  redis:
+    image: redis:7-alpine
+    container_name: nexussniff-redis
+    restart: unless-stopped
+    command: redis-server --requirepass nexus_redis_2024
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  clickhouse_data:
+  redis_data:
