@@ -349,15 +349,25 @@ class MainWindow(QMainWindow):
 
     def _show_settings(self):
         """Muestra el diálogo de configuración."""
+        from app.main import load_theme
+        # Snapshot del tema antes de abrir para poder revertir al cancelar
+        current_settings = QSettings("NexusSniff", "NexusSniff")
+        theme_before = current_settings.value("theme", "Dark Mode (Nexus)")
+        theme_file_before = "light" if "Light Mode" in theme_before else "dark"
+
         dialog = SettingsDialog(self)
         # Aplicar el stylesheet de la aplicación al dialog para garantizar el tema
         dialog.setStyleSheet(QApplication.instance().styleSheet())
+
         if dialog.exec():
-            settings = QSettings("NexusSniff", "NexusSniff")
-            current_theme = settings.value("theme", "Dark Mode (Nexus)")
+            # Guardado — aplicar el nuevo tema a toda la aplicación
+            new_settings = QSettings("NexusSniff", "NexusSniff")
+            current_theme = new_settings.value("theme", "Dark Mode (Nexus)")
             theme_file = "light" if "Light Mode" in current_theme else "dark"
-            from app.main import load_theme
             load_theme(QApplication.instance(), theme_file)
+        else:
+            # Cancelado — restaurar el tema original en la app global
+            load_theme(QApplication.instance(), theme_file_before)
 
     def _update_statusbar(self, stats: dict):
         """Actualiza la barra de estado con estadísticas."""

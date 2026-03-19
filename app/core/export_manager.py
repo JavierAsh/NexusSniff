@@ -150,11 +150,18 @@ class ExportManager:
         fields = ['number', 'timestamp', 'src_ip', 'dst_ip',
                   'src_port', 'dst_port', 'protocol', 'length', 'info']
 
-        with open(filepath, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=fields, extrasaction='ignore')
-            writer.writeheader()
-            for pkt in packets:
-                writer.writerow(pkt)
+        try:
+            with open(filepath, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=fields, extrasaction='ignore')
+                writer.writeheader()
+                for pkt in packets:
+                    writer.writerow(pkt)
+        except OSError as e:
+            QMessageBox.critical(
+                parent, "Error al exportar",
+                f"No se pudo escribir el archivo CSV:\n{e}"
+            )
+            return False
 
         return True
 
@@ -174,8 +181,15 @@ class ExportManager:
             for pkt in packets
         ]
 
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(clean_packets, f, indent=2, ensure_ascii=False, default=str)
+        try:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(clean_packets, f, indent=2, ensure_ascii=False, default=str)
+        except OSError as e:
+            QMessageBox.critical(
+                parent, "Error al exportar",
+                f"No se pudo escribir el archivo JSON:\n{e}"
+            )
+            return False
 
         return True
 
@@ -193,26 +207,13 @@ class ExportManager:
             )
             from openpyxl.utils import get_column_letter
         except ImportError:
-            # Auto-instalar openpyxl de forma transparente
-            import subprocess, sys
-            try:
-                subprocess.check_call(
-                    [sys.executable, '-m', 'pip', 'install', 'openpyxl', '-q'],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                )
-                import openpyxl
-                from openpyxl.styles import (
-                    PatternFill, Font, Alignment, Border, Side, GradientFill
-                )
-                from openpyxl.utils import get_column_letter
-            except Exception:
-                QMessageBox.critical(
-                    parent,
-                    "Dependencia faltante",
-                    "No se pudo instalar openpyxl automáticamente.\n\n"
-                    "Instálala manualmente con:\n  pip install openpyxl"
-                )
-                return False
+            QMessageBox.critical(
+                parent,
+                "Dependencia faltante",
+                "El módulo 'openpyxl' no está instalado.\n\n"
+                "Instálalo manualmente con:\n  pip install openpyxl"
+            )
+            return False
 
         filepath, _ = QFileDialog.getSaveFileName(
             parent, "Exportar captura como Excel",
@@ -335,13 +336,21 @@ class ExportManager:
         ws_packets.row_dimensions[1].height = 24
         ws_packets.freeze_panes = 'A2'
 
+        # Estilos pre-creados para el loop (evita crear objetos por fila)
+        proto_cell_font  = Font(name="Segoe UI", bold=True, size=9, color="FFFFFFFF")
+        row_fill_even    = make_fill("FFffffff")
+        row_fill_odd     = make_fill("FFf8fafc")
+        proto_fill_cache: Dict[str, PatternFill] = {}
+
         for row_idx, pkt in enumerate(packets, start=2):
             proto = pkt.get('protocol', 'Unknown')
             colors = PROTOCOL_EXCEL_COLORS.get(proto, PROTOCOL_EXCEL_COLORS['Unknown'])
             fg_hex, _ = colors
 
-            row_fill   = make_fill("FFffffff") if row_idx % 2 == 0 else make_fill("FFf8fafc")
-            proto_fill = make_fill(fg_hex)
+            row_fill = row_fill_even if row_idx % 2 == 0 else row_fill_odd
+            if fg_hex not in proto_fill_cache:
+                proto_fill_cache[fg_hex] = make_fill(fg_hex)
+            proto_fill = proto_fill_cache[fg_hex]
 
             # Construir valores
             src = pkt.get('src_ip', '')
@@ -378,7 +387,7 @@ class ExportManager:
                 cell.alignment = left_align
 
                 if col_idx == 5:  # Protocolo
-                    cell.font  = Font(name="Segoe UI", bold=True, size=9, color="FFFFFFFF")
+                    cell.font  = proto_cell_font
                     cell.fill  = proto_fill
                     cell.alignment = center_align
                 else:
@@ -408,6 +417,10 @@ class ExportManager:
         total = sum(proto_dist.values()) or 1
         sorted_protos = sorted(proto_dist.items(), key=lambda x: x[1], reverse=True)
 
+        proto_title_font = Font(name="Segoe UI", bold=True, size=10, color="FFFFFFFF")
+        proto_data_font  = Font(name="Consolas", size=10)
+        proto_data_fill  = make_fill("FFfafafa")
+
         for row_idx, (proto_name, count) in enumerate(sorted_protos, start=2):
             pct = count / total * 100
             colors = PROTOCOL_EXCEL_COLORS.get(proto_name, PROTOCOL_EXCEL_COLORS['Unknown'])
@@ -415,23 +428,33 @@ class ExportManager:
 
             ws_protos.row_dimensions[row_idx].height = 20
 
+            if fg_hex not in proto_fill_cache:
+                proto_fill_cache[fg_hex] = make_fill(fg_hex)
+
             p_cell = ws_protos.cell(row=row_idx, column=1, value=proto_name)
-            p_cell.font      = Font(name="Segoe UI", bold=True, size=10, color="FFFFFFFF")
-            p_cell.fill      = make_fill(fg_hex)
+            p_cell.font      = proto_title_font
+            p_cell.fill      = proto_fill_cache[fg_hex]
             p_cell.alignment = center_align
             p_cell.border    = border
 
             c_cell = ws_protos.cell(row=row_idx, column=2, value=count)
-            c_cell.font      = Font(name="Consolas", size=10)
+            c_cell.font      = proto_data_font
             c_cell.alignment = center_align
             c_cell.border    = border
-            c_cell.fill      = make_fill("FFfafafa")
+            c_cell.fill      = proto_data_fill
 
             pct_cell = ws_protos.cell(row=row_idx, column=3, value=f"{pct:.1f}%")
-            pct_cell.font      = Font(name="Consolas", size=10)
+            pct_cell.font      = proto_data_font
             pct_cell.alignment = center_align
             pct_cell.border    = border
-            pct_cell.fill      = make_fill("FFfafafa")
+            pct_cell.fill      = proto_data_fill
 
-        wb.save(filepath)
+        try:
+            wb.save(filepath)
+        except OSError as e:
+            QMessageBox.critical(
+                parent, "Error al exportar",
+                f"No se pudo guardar el archivo Excel:\n{e}"
+            )
+            return False
         return True

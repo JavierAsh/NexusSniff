@@ -1,12 +1,21 @@
 """
-db_manager.py — Conexiones a bases de datos.
+db_manager.py — Conexiones a bases de datos con flush asíncrono.
 
-Gestiona conexiones a PostgreSQL (sesiones, filtros),
+Gestiona conexiones opcionales a PostgreSQL (sesiones, filtros),
 ClickHouse (paquetes históricos) y Redis (cache de stats).
+
+La persistencia se activa si las variables de entorno DB están
+configuradas. El flush a ClickHouse corre en un hilo background
+para no bloquear la captura ni la UI.
 """
 
 import os
+import logging
+import threading
+import queue
 from typing import Optional, Dict, Any, List
+
+logger = logging.getLogger(__name__)
 
 # Configuración leída de variables de entorno para evitar exposición de secrets
 DB_CONFIG = {
@@ -32,9 +41,17 @@ DB_CONFIG = {
     }
 }
 
+# Habilitar persistencia si alguna DB está configurada explícitamente
+DB_ENABLED = bool(os.getenv('NEXUS_PG_HOST') or os.getenv('NEXUS_CH_HOST'))
+
 
 class DatabaseManager:
-    """Gestor centralizado de conexiones a base de datos."""
+    """
+    Gestor centralizado de conexiones a base de datos.
+
+    Incluye un hilo de flush asíncrono para enviar batches de paquetes
+    a ClickHouse sin bloquear la captura.
+    """
 
     def __init__(self, config: Dict[str, Any] = None):
         self._config = config or DB_CONFIG
@@ -42,7 +59,16 @@ class DatabaseManager:
         self._ch_client = None
         self._redis_client = None
 
-    def connect_postgres(self):
+        # Flush queue para ClickHouse (thread-safe)
+        self._flush_queue: queue.Queue = queue.Queue(maxsize=100)
+        self._flush_thread: Optional[threading.Thread] = None
+        self._flush_running = False
+
+    # ─────────────────────────────────────────────────────
+    # Conexiones
+    # ─────────────────────────────────────────────────────
+
+    def connect_postgres(self) -> bool:
         """Conecta a PostgreSQL."""
         try:
             import psycopg2
@@ -56,12 +82,13 @@ class DatabaseManager:
             )
             self._pg_conn.autocommit = True
             self._init_postgres_schema()
+            logger.info("Conectado a PostgreSQL en %s:%s", cfg['host'], cfg['port'])
             return True
         except Exception as e:
-            print(f"[DB] Error conectando a PostgreSQL: {e}")
+            logger.error("Error conectando a PostgreSQL: %s", e)
             return False
 
-    def connect_clickhouse(self):
+    def connect_clickhouse(self) -> bool:
         """Conecta a ClickHouse."""
         try:
             from clickhouse_driver import Client
@@ -74,12 +101,13 @@ class DatabaseManager:
                 password=cfg['password']
             )
             self._init_clickhouse_schema()
+            logger.info("Conectado a ClickHouse en %s:%s", cfg['host'], cfg['port'])
             return True
         except Exception as e:
-            print(f"[DB] Error conectando a ClickHouse: {e}")
+            logger.error("Error conectando a ClickHouse: %s", e)
             return False
 
-    def connect_redis(self):
+    def connect_redis(self) -> bool:
         """Conecta a Redis."""
         try:
             import redis
@@ -92,10 +120,15 @@ class DatabaseManager:
                 decode_responses=True
             )
             self._redis_client.ping()
+            logger.info("Conectado a Redis en %s:%s", cfg['host'], cfg['port'])
             return True
         except Exception as e:
-            print(f"[DB] Error conectando a Redis: {e}")
+            logger.error("Error conectando a Redis: %s", e)
             return False
+
+    # ─────────────────────────────────────────────────────
+    # Esquemas
+    # ─────────────────────────────────────────────────────
 
     def _init_postgres_schema(self):
         """Crea las tablas en PostgreSQL si no existen."""
@@ -149,7 +182,66 @@ class DatabaseManager:
             ORDER BY (session_id, timestamp)
         """)
 
-    def save_packets_batch(self, session_id: str, packets: List[Dict[str, Any]]):
+    # ─────────────────────────────────────────────────────
+    # Flush asíncrono (background thread)
+    # ─────────────────────────────────────────────────────
+
+    def start_async_flush(self):
+        """Inicia el hilo de flush asíncrono para ClickHouse."""
+        if self._flush_running:
+            return
+        self._flush_running = True
+        self._flush_thread = threading.Thread(
+            target=self._flush_loop,
+            name="NexusDB-Flush",
+            daemon=True
+        )
+        self._flush_thread.start()
+        logger.info("Hilo de flush asíncrono iniciado")
+
+    def stop_async_flush(self):
+        """Detiene el hilo de flush y procesa los pendientes."""
+        self._flush_running = False
+        if self._flush_thread and self._flush_thread.is_alive():
+            # Enviar sentinel para despertar el hilo
+            self._flush_queue.put(None)
+            self._flush_thread.join(timeout=5.0)
+            logger.info("Hilo de flush asíncrono detenido")
+
+    def enqueue_packets(self, session_id: str, packets: List[Dict[str, Any]]):
+        """Encola un batch de paquetes para flush asíncrono."""
+        if not self._flush_running:
+            return
+        try:
+            self._flush_queue.put_nowait((session_id, packets))
+        except queue.Full:
+            logger.warning("Cola de flush llena, descartando batch de %d paquetes", len(packets))
+
+    def _flush_loop(self):
+        """Loop del hilo de flush — procesa batches de la cola."""
+        while self._flush_running:
+            try:
+                item = self._flush_queue.get(timeout=1.0)
+                if item is None:
+                    break  # Sentinel de parada
+                session_id, packets = item
+                self._save_packets_batch(session_id, packets)
+            except queue.Empty:
+                continue
+            except Exception as e:
+                logger.error("Error en flush asíncrono: %s", e)
+
+        # Vaciar cola restante antes de salir
+        while not self._flush_queue.empty():
+            try:
+                item = self._flush_queue.get_nowait()
+                if item is not None:
+                    session_id, packets = item
+                    self._save_packets_batch(session_id, packets)
+            except (queue.Empty, Exception):
+                break
+
+    def _save_packets_batch(self, session_id: str, packets: List[Dict[str, Any]]):
         """Guarda un batch de paquetes en ClickHouse."""
         if not self._ch_client or not packets:
             return
@@ -171,14 +263,29 @@ class DatabaseManager:
                 'info': pkt.get('info', ''),
             })
 
-        self._ch_client.execute(
-            'INSERT INTO packets VALUES',
-            rows
-        )
+        try:
+            self._ch_client.execute(
+                'INSERT INTO packets VALUES',
+                rows
+            )
+        except Exception as e:
+            logger.error("Error insertando batch en ClickHouse: %s", e)
+
+    # ─────────────────────────────────────────────────────
+    # Cleanup
+    # ─────────────────────────────────────────────────────
 
     def close(self):
-        """Cierra todas las conexiones."""
+        """Cierra todas las conexiones y detiene el flush."""
+        self.stop_async_flush()
         if self._pg_conn:
-            self._pg_conn.close()
+            try:
+                self._pg_conn.close()
+            except Exception:
+                pass
         if self._redis_client:
-            self._redis_client.close()
+            try:
+                self._redis_client.close()
+            except Exception:
+                pass
+        logger.info("DatabaseManager cerrado")

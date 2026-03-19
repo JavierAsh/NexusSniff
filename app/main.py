@@ -7,30 +7,48 @@ y lanza la ventana principal.
 
 import sys
 import os
+import logging
 from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QFont, QFontDatabase, QIcon
 from PyQt6.QtCore import Qt
 
+logger = logging.getLogger(__name__)
+
+
+def _load_theme_content(theme_name: str = "dark") -> str:
+    """Lee el contenido QSS del tema SIN aplicarlo a ninguna QApplication.
+    Usado para previews dentro del diálogo de configuración."""
+    theme_path = Path(__file__).parent / "themes" / f"{theme_name}.qss"
+    if theme_path.exists():
+        try:
+            with open(theme_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except OSError as e:
+            logger.error("Error al leer el tema %s: %s", theme_path, e)
+    return ""
+
 
 def load_theme(app: QApplication, theme_name: str = "dark") -> str:
-    """Carga la hoja de estilos."""
-    theme_path = Path(__file__).parent / "themes" / f"{theme_name}.qss"
-
-    if theme_path.exists():
-        with open(theme_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            app.setStyleSheet(content)
-            print(f"[NexusSniff] Tema cargado: {theme_name}")
-            return content
+    """Carga la hoja de estilos y la aplica a la QApplication."""
+    content = _load_theme_content(theme_name)
+    if content:
+        app.setStyleSheet(content)
+        logger.info("Tema cargado: %s", theme_name)
     else:
-        print(f"[NexusSniff] Advertencia: No se encontró {theme_path}")
-        return ""
+        logger.warning("No se encontró el tema: %s", theme_name)
+    return content
 
 
 def main():
     """Punto de entrada principal."""
+    # Configurar logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[NexusSniff] %(levelname)s — %(name)s — %(message)s"
+    )
+
     # Habilitar High DPI
     os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
@@ -38,6 +56,10 @@ def main():
     app.setApplicationName("NexusSniff")
     app.setApplicationVersion("1.2.0")
     app.setOrganizationName("NexusSniff")
+
+    # Instalar crash reporter global (antes de todo lo demás)
+    from app.ui.crash_dialog import install_exception_hook
+    install_exception_hook()
 
     # Cargar preferencias desde QSettings
     from PyQt6.QtCore import QSettings
@@ -54,8 +76,8 @@ def main():
     default_font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
     app.setFont(default_font)
 
-    # Manejar los nombres amigables del combobox si están guardados así
-    if "Light Mode" in current_theme:
+    # Resolver el nombre del tema (guardar valor interno, no texto display)
+    if isinstance(current_theme, str) and "light" in current_theme.lower():
         theme_file = "light"
     else:
         theme_file = "dark"

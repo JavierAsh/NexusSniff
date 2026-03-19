@@ -1,6 +1,9 @@
 /**
  * @file stats.cpp
- * @brief Implementación de estadísticas de captura en tiempo real.
+ * @brief Implementación de estadísticas de captura — 100% lock-free.
+ *
+ * Todas las operaciones usan std::atomic, eliminando cualquier
+ * contención de mutex entre hilos de captura y lectura.
  */
 
 #include "nexus/stats.hpp"
@@ -11,8 +14,11 @@ void CaptureStats::record_packet(ProtocolType protocol, uint64_t bytes) {
     total_packets.fetch_add(1, std::memory_order_relaxed);
     total_bytes.fetch_add(bytes, std::memory_order_relaxed);
 
-    std::lock_guard<std::mutex> lock(proto_mutex_);
-    protocol_counts_[protocol]++;
+    // Incremento lock-free del contador de protocolo
+    auto index = static_cast<std::size_t>(protocol);
+    if (index < PROTOCOL_COUNT) {
+        protocol_counts_[index].fetch_add(1, std::memory_order_relaxed);
+    }
 }
 
 void CaptureStats::update_rates() {
@@ -36,11 +42,14 @@ void CaptureStats::update_rates() {
 }
 
 std::unordered_map<std::string, uint64_t> CaptureStats::get_protocol_distribution() const {
-    std::lock_guard<std::mutex> lock(proto_mutex_);
+    // Lectura lock-free: cada load() es atómico independiente
     std::unordered_map<std::string, uint64_t> result;
 
-    for (const auto& [proto, count] : protocol_counts_) {
-        result[protocol_to_string(proto)] = count;
+    for (std::size_t i = 0; i < PROTOCOL_COUNT; ++i) {
+        uint64_t count = protocol_counts_[i].load(std::memory_order_relaxed);
+        if (count > 0) {
+            result[protocol_to_string(static_cast<ProtocolType>(i))] = count;
+        }
     }
 
     return result;
@@ -58,8 +67,10 @@ void CaptureStats::reset() {
     prev_bytes_ = 0;
     last_rate_update_ = std::chrono::steady_clock::now();
 
-    std::lock_guard<std::mutex> lock(proto_mutex_);
-    protocol_counts_.clear();
+    // Reset lock-free de todos los contadores de protocolo
+    for (auto& counter : protocol_counts_) {
+        counter.store(0, std::memory_order_relaxed);
+    }
 }
 
 } // namespace nexus

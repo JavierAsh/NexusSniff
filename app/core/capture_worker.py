@@ -5,15 +5,83 @@ Usa QThread para invocar nexus_engine.PacketCapturer sin bloquear
 la interfaz PyQt6. Emite señales cuando hay nuevos paquetes o
 actualizaciones de estadísticas.
 
-Optimizaciones v1.1:
-- get_stats() solo se llama cuando va a emitir (4x/seg), no en cada iteración
+Optimizaciones v1.2 (Zero-Copy):
+- Los PacketData de C++ se pasan directamente como objetos opacos
+- Solo se convierten a dict bajo demanda (detail_panel, export)
+- get_stats() solo se llama cuando va a emitir (4x/seg)
 - msleep(10) tras procesar batch para ceder CPU
-- Separación clara de timers de batch y stats
-- Lógica de polling simplificada y sin overhead innecesario
 """
 
 from PyQt6.QtCore import QThread, pyqtSignal
+import logging
 import time
+
+logger = logging.getLogger(__name__)
+
+
+def packet_to_dict(pkt) -> dict:
+    """Convierte un PacketData C++ a dict Python — solo bajo demanda."""
+    packet_dict = {
+        'number':       pkt.number,
+        'timestamp':    pkt.timestamp,
+        'length':       pkt.length,
+        'protocol':     pkt.protocol_name,
+        'src_ip':       pkt.src_ip_str,
+        'dst_ip':       pkt.dst_ip_str,
+        'src_port':     pkt.src_port,
+        'dst_port':     pkt.dst_port,
+        'src_mac':      pkt.src_mac_str,
+        'dst_mac':      pkt.dst_mac_str,
+        'info':         pkt.info,
+        'raw_data':     bytes(pkt.raw_data),
+        'has_ethernet': pkt.has_ethernet,
+        'has_ipv4':     pkt.has_ipv4,
+        'has_tcp':      pkt.has_tcp,
+        'has_udp':      pkt.has_udp,
+        'has_icmp':     pkt.has_icmp,
+        'has_arp':      pkt.has_arp,
+    }
+
+    # Añadir capas decodificadas solo si existen
+    if pkt.has_ethernet:
+        packet_dict['ethernet'] = {
+            'ethertype': pkt.ethernet.ethertype,
+        }
+    if pkt.has_ipv4:
+        packet_dict['ipv4'] = {
+            'version':        pkt.ipv4.version,
+            'ihl':            pkt.ipv4.ihl,
+            'ttl':            pkt.ipv4.ttl,
+            'total_length':   pkt.ipv4.total_length,
+            'identification': pkt.ipv4.identification,
+            'protocol':       pkt.ipv4.protocol,
+            'checksum':       pkt.ipv4.checksum,
+        }
+    if pkt.has_tcp:
+        packet_dict['tcp'] = {
+            'src_port':    pkt.tcp.src_port,
+            'dst_port':    pkt.tcp.dst_port,
+            'seq_number':  pkt.tcp.seq_number,
+            'ack_number':  pkt.tcp.ack_number,
+            'flags':       pkt.tcp.flags,
+            'window_size': pkt.tcp.window_size,
+            'checksum':    pkt.tcp.checksum,
+        }
+    if pkt.has_udp:
+        packet_dict['udp'] = {
+            'src_port': pkt.udp.src_port,
+            'dst_port': pkt.udp.dst_port,
+            'length':   pkt.udp.length,
+            'checksum': pkt.udp.checksum,
+        }
+    if pkt.has_icmp:
+        packet_dict['icmp'] = {
+            'type':     pkt.icmp.type,
+            'code':     pkt.icmp.code,
+            'checksum': pkt.icmp.checksum,
+        }
+
+    return packet_dict
 
 
 class CaptureWorker(QThread):
@@ -21,7 +89,7 @@ class CaptureWorker(QThread):
     Worker thread para captura de paquetes de red.
 
     Señales:
-        new_packets: Lista de dicts con datos de paquetes procesados.
+        new_packets: Lista de objetos PacketData C++ (zero-copy).
         stats_updated: Diccionario con estadísticas de captura.
         capture_error: Mensaje de error si falla la captura.
         capture_started: Emitida cuando la captura comienza exitosamente.
@@ -57,7 +125,7 @@ class CaptureWorker(QThread):
         return self._is_running
 
     def run(self):
-        """Loop principal del hilo de captura — optimizado para bajo overhead."""
+        """Loop principal del hilo de captura — zero-copy optimizado."""
         try:
             # Importar el módulo C++ compilado
             try:
@@ -84,79 +152,19 @@ class CaptureWorker(QThread):
             self._is_running = True
             self.capture_started.emit()
 
-            # ── Loop de polling optimizado ──
+            # ── Loop de polling optimizado (zero-copy) ──
             packet_batch = []
             last_batch_time = time.monotonic()
             last_stats_time = time.monotonic()
 
             while self._is_running and self._capturer.is_capturing():
                 # Obtener paquetes del ring buffer (hasta 500 por iteración)
+                # Los PacketData se pasan directamente como objetos C++
                 raw_packets = self._capturer.get_packets(500)
 
                 if raw_packets:
-                    # Convertir PacketData C++ a dicts para la UI
-                    for pkt in raw_packets:
-                        packet_dict = {
-                            'number':       pkt.number,
-                            'timestamp':    pkt.timestamp,
-                            'length':       pkt.length,
-                            'protocol':     pkt.protocol_name,
-                            'src_ip':       pkt.src_ip_str,
-                            'dst_ip':       pkt.dst_ip_str,
-                            'src_port':     pkt.src_port,
-                            'dst_port':     pkt.dst_port,
-                            'src_mac':      pkt.src_mac_str,
-                            'dst_mac':      pkt.dst_mac_str,
-                            'info':         pkt.info,
-                            'raw_data':     bytes(pkt.raw_data),
-                            'has_ethernet': pkt.has_ethernet,
-                            'has_ipv4':     pkt.has_ipv4,
-                            'has_tcp':      pkt.has_tcp,
-                            'has_udp':      pkt.has_udp,
-                            'has_icmp':     pkt.has_icmp,
-                            'has_arp':      pkt.has_arp,
-                        }
-
-                        # Añadir capas decodificadas solo si existen
-                        if pkt.has_ethernet:
-                            packet_dict['ethernet'] = {
-                                'ethertype': pkt.ethernet.ethertype,
-                            }
-                        if pkt.has_ipv4:
-                            packet_dict['ipv4'] = {
-                                'version':        pkt.ipv4.version,
-                                'ihl':            pkt.ipv4.ihl,
-                                'ttl':            pkt.ipv4.ttl,
-                                'total_length':   pkt.ipv4.total_length,
-                                'identification': pkt.ipv4.identification,
-                                'protocol':       pkt.ipv4.protocol,
-                                'checksum':       pkt.ipv4.checksum,
-                            }
-                        if pkt.has_tcp:
-                            packet_dict['tcp'] = {
-                                'src_port':   pkt.tcp.src_port,
-                                'dst_port':   pkt.tcp.dst_port,
-                                'seq_number': pkt.tcp.seq_number,
-                                'ack_number': pkt.tcp.ack_number,
-                                'flags':      pkt.tcp.flags,
-                                'window_size':pkt.tcp.window_size,
-                                'checksum':   pkt.tcp.checksum,
-                            }
-                        if pkt.has_udp:
-                            packet_dict['udp'] = {
-                                'src_port': pkt.udp.src_port,
-                                'dst_port': pkt.udp.dst_port,
-                                'length':   pkt.udp.length,
-                                'checksum': pkt.udp.checksum,
-                            }
-                        if pkt.has_icmp:
-                            packet_dict['icmp'] = {
-                                'type':     pkt.icmp.type,
-                                'code':     pkt.icmp.code,
-                                'checksum': pkt.icmp.checksum,
-                            }
-
-                        packet_batch.append(packet_dict)
+                    # Zero-copy: pasar los objetos PacketData directamente
+                    packet_batch.extend(raw_packets)
 
                 now = time.monotonic()
 
@@ -170,7 +178,6 @@ class CaptureWorker(QThread):
                     last_batch_time = now
 
                 # Emitir estadísticas a menor frecuencia (4x/seg)
-                # IMPORTANTE: get_stats() solo se llama aquí, no en cada iter
                 if (now - last_stats_time) >= self.STATS_EMIT_INTERVAL:
                     stats = self._capturer.get_stats()
                     stats_dict = {
@@ -202,8 +209,8 @@ class CaptureWorker(QThread):
             if self._capturer:
                 try:
                     self._capturer.stop()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Error al detener captura en finally: %s", e)
             self.capture_stopped.emit()
 
     def stop_capture(self):
@@ -212,5 +219,5 @@ class CaptureWorker(QThread):
         if self._capturer:
             try:
                 self._capturer.stop()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Error al detener captura: %s", e)

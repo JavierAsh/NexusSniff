@@ -138,11 +138,6 @@ class CapturePanel(QWidget):
         self._auto_scroll_btn.setMaximumHeight(28)
         self._auto_scroll_btn.setCheckable(True)
         self._auto_scroll_btn.setChecked(True)
-        self._auto_scroll_btn.setStyleSheet("""
-QPushButton:hover {
-    background-color: rgba(200, 208, 224, 0.15);
-}
-""")
         self._auto_scroll_btn.clicked.connect(self._toggle_auto_scroll)
         status_row.addWidget(self._auto_scroll_btn)
 
@@ -228,6 +223,17 @@ QPushButton:hover {
         except Exception as e:
             self._interface_combo.addItem(f"Error: {e}", "__error__")
 
+    def _create_worker(self, interface_name: str, bpf_filter: str):
+        """Crea y conecta un CaptureWorker. Método centralizado para evitar duplicación."""
+        self._capture_worker = CaptureWorker()
+        self._capture_worker.configure(interface_name, bpf_filter)
+        self._capture_worker.new_packets.connect(self._on_new_packets)
+        self._capture_worker.stats_updated.connect(self._on_stats_updated)
+        self._capture_worker.capture_error.connect(self._on_capture_error)
+        self._capture_worker.capture_started.connect(self._on_capture_started)
+        self._capture_worker.capture_stopped.connect(self._on_capture_stopped)
+        self._capture_worker.start()
+
     def _start_capture(self):
         """Inicia la captura de paquetes."""
         if self._interface_combo.currentData() in ("__demo__", "__error__"):
@@ -240,15 +246,7 @@ QPushButton:hover {
 
         interface_name = self._interface_combo.currentData()
         bpf_filter = self._filter_bar.get_filter()
-
-        self._capture_worker = CaptureWorker()
-        self._capture_worker.configure(interface_name, bpf_filter)
-        self._capture_worker.new_packets.connect(self._on_new_packets)
-        self._capture_worker.stats_updated.connect(self._on_stats_updated)
-        self._capture_worker.capture_error.connect(self._on_capture_error)
-        self._capture_worker.capture_started.connect(self._on_capture_started)
-        self._capture_worker.capture_stopped.connect(self._on_capture_stopped)
-        self._capture_worker.start()
+        self._create_worker(interface_name, bpf_filter)
 
     def _stop_capture(self):
         """Detiene la captura."""
@@ -269,9 +267,20 @@ QPushButton:hover {
 
     def _export_capture(self):
         """Exporta los paquetes capturados con opciones de formato."""
-        packets = [
+        from app.core.capture_worker import packet_to_dict
+
+        raw_packets = [
             self._packet_model.get_packet(i)
             for i in range(self._packet_model.packet_count())
+        ]
+        if not raw_packets:
+            QMessageBox.information(self, "Sin datos", "No hay paquetes para exportar.")
+            return
+
+        # Convertir PacketData C++ a dicts bajo demanda (solo al exportar)
+        packets = [
+            packet_to_dict(p) if not isinstance(p, dict) else p
+            for p in raw_packets
         ]
         if not packets:
             QMessageBox.information(self, "Sin datos", "No hay paquetes para exportar.")
@@ -304,36 +313,34 @@ QPushButton:hover {
         self._auto_scroll = checked
         label = "Auto-scroll: ON" if checked else "Auto-scroll: OFF"
         self._auto_scroll_btn.setText(label)
+        # Al reactivar el autoscroll, liberar la fila seleccionada para que
+        # el scroll vuelva a funcionar inmediatamente con los nuevos paquetes.
+        if checked:
+            self._selected_row = -1
 
     def _on_filter_applied(self, expression: str):
         """Aplica el filtro BPF reiniciando la captura con la nueva expresión."""
         if self._capture_worker and self._capture_worker.isRunning():
+            self._pending_filter = expression
+            self._capture_worker.capture_stopped.connect(self._on_restart_after_stop)
             self._stop_capture()
-            # Esperar un breve instante antes de reiniciar con el nuevo filtro
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(300, lambda: self._restart_with_filter(expression))
         # Si no hay captura activa, el filtro se usará en la próxima captura
 
     def _on_filter_cleared(self):
         """Limpia el filtro y reinicia la captura sin filtro si estaba activa."""
         if self._capture_worker and self._capture_worker.isRunning():
+            self._pending_filter = ""
+            self._capture_worker.capture_stopped.connect(self._on_restart_after_stop)
             self._stop_capture()
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(300, lambda: self._restart_with_filter(""))
 
-    def _restart_with_filter(self, bpf_filter: str):
-        """Reinicia la captura con un filtro BPF especificado."""
+    def _on_restart_after_stop(self):
+        """Reinicia la captura tras recibir la señal capture_stopped."""
+        bpf_filter = getattr(self, '_pending_filter', '')
+        self._pending_filter = None
         interface_name = self._interface_combo.currentData()
         if interface_name in ("__demo__", "__error__"):
             return
-        self._capture_worker = CaptureWorker()
-        self._capture_worker.configure(interface_name, bpf_filter)
-        self._capture_worker.new_packets.connect(self._on_new_packets)
-        self._capture_worker.stats_updated.connect(self._on_stats_updated)
-        self._capture_worker.capture_error.connect(self._on_capture_error)
-        self._capture_worker.capture_started.connect(self._on_capture_started)
-        self._capture_worker.capture_stopped.connect(self._on_capture_stopped)
-        self._capture_worker.start()
+        self._create_worker(interface_name, bpf_filter)
 
     def _on_new_packets(self, packets: list):
         """Maneja la llegada de nuevos paquetes."""
@@ -344,8 +351,8 @@ QPushButton:hover {
         # Actualizar estado de botones
         self._update_buttons()
 
-        # Solo hacer scroll si auto-scroll está activado Y no hay selección activa
-        if self._auto_scroll and self._selected_row < 0:
+        # Solo hacer scroll si auto-scroll está activado
+        if self._auto_scroll:
             self._table_view.scrollToBottom()
 
     def _on_stats_updated(self, stats: dict):
@@ -405,8 +412,17 @@ QPushButton:hover {
         if packet is None:
             return
         self._selected_row = row
-        self._detail_panel.set_packet(packet)
-        raw_data = packet.get('raw_data', b'')
+
+        # Convertir PacketData C++ a dict para detail_panel si es necesario
+        if isinstance(packet, dict):
+            packet_dict = packet
+        else:
+            from app.core.capture_worker import packet_to_dict
+            packet_dict = packet_to_dict(packet)
+
+        self._detail_panel.set_packet(packet_dict)
+
+        raw_data = packet_dict.get('raw_data', b'')
         if isinstance(raw_data, (bytes, bytearray)) and raw_data:
             self._hex_view.set_data(bytes(raw_data))
         else:

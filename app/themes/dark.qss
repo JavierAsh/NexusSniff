@@ -1089,3 +1089,17 @@ QLabel#settingsDirError {
     font-size: 11px;
     background: transparent;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   AUTO-SCROLL BUTTON & EMPTY STATE
+   ═══════════════════════════════════════════════════════════════ */
+
+QPushButton#autoScrollBtn:hover {
+    background-color: rgba(200, 208, 224, 0.15);
+}
+
+QLabel#emptyStateText {
+    color: rgba(136, 146, 168, 0.7);
+    font-size: 13px;
+    margin-top: 8px;
+}

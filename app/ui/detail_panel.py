@@ -52,6 +52,13 @@ class DetailPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("detailPanelWidget")
+
+        # Fuentes pre-creadas (evita recrearlas por cada paquete)
+        self._bold_layer_font = QFont("Segoe UI", 11)
+        self._bold_layer_font.setBold(True)
+        self._mono_font = QFont("JetBrains Mono", 10)
+        self._mono_font.setStyleHint(QFont.StyleHint.Monospace)
+
         self._setup_ui()
 
     def _setup_ui(self):
@@ -107,7 +114,6 @@ class DetailPanel(QWidget):
         empty_text = QLabel("Selecciona un paquete de la tabla\npara inspeccionar sus detalles")
         empty_text.setObjectName("emptyStateText")
         empty_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty_text.setStyleSheet("color: rgba(136, 146, 168, 0.7); font-size: 13px; margin-top: 8px;")
         empty_layout.addWidget(empty_text)
 
         self._stack.addWidget(empty_container)
@@ -123,9 +129,6 @@ class DetailPanel(QWidget):
             return
 
         self._stack.setCurrentIndex(0) # Show tree View
-        
-        mono_font = QFont("JetBrains Mono", 10)
-        mono_font.setStyleHint(QFont.StyleHint.Monospace)
 
         layers_added = 0
 
@@ -138,15 +141,13 @@ class DetailPanel(QWidget):
             eth_item.setText(0, f"⬡  Ethernet II   {src} → {dst}")
             eth_item.setForeground(0, QColor(LAYER_COLORS['ethernet']))
             eth_item.setData(0, Qt.ItemDataRole.UserRole, ('ethernet', 0, 14))
-            eth_font = QFont("Segoe UI", 11)
-            eth_font.setBold(True)
-            eth_item.setFont(0, eth_font)
+            eth_item.setFont(0, self._bold_layer_font)
 
-            self._add_field(eth_item, "Destino MAC", dst, mono_font)
-            self._add_field(eth_item, "Origen MAC", src, mono_font)
+            self._add_field(eth_item, "Destino MAC", dst)
+            self._add_field(eth_item, "Origen MAC", src)
             eth_type = packet.get('ethernet', {}).get('ethertype', 0)
             if eth_type:
-                self._add_field(eth_item, "Ethertype", f"0x{eth_type:04x}", mono_font)
+                self._add_field(eth_item, "Ethertype", f"0x{eth_type:04x}")
 
         # ── Capa IPv4 ──
         if packet.get('has_ipv4'):
@@ -159,19 +160,17 @@ class DetailPanel(QWidget):
             ip_item.setForeground(0, QColor(LAYER_COLORS['ipv4']))
             ihl = ipv4.get('ihl', 5)
             ip_item.setData(0, Qt.ItemDataRole.UserRole, ('ipv4', 14, 14 + ihl * 4))
-            ip_font = QFont("Segoe UI", 11)
-            ip_font.setBold(True)
-            ip_item.setFont(0, ip_font)
+            ip_item.setFont(0, self._bold_layer_font)
 
-            self._add_field(ip_item, "Versión", str(ipv4.get('version', 4)), mono_font)
-            self._add_field(ip_item, "IHL", f"{ihl}  ({ihl * 4} bytes)", mono_font)
-            self._add_field(ip_item, "Longitud total", str(ipv4.get('total_length', 0)), mono_font)
-            self._add_field(ip_item, "ID", f"0x{ipv4.get('identification', 0):04x}", mono_font)
-            self._add_field(ip_item, "TTL", str(ipv4.get('ttl', 0)), mono_font)
-            self._add_field(ip_item, "Protocolo", str(ipv4.get('protocol', 0)), mono_font)
-            self._add_field(ip_item, "Checksum", f"0x{ipv4.get('checksum', 0):04x}", mono_font)
-            self._add_field(ip_item, "Origen", src_ip, mono_font)
-            self._add_field(ip_item, "Destino", dst_ip, mono_font)
+            self._add_field(ip_item, "Versión", str(ipv4.get('version', 4)))
+            self._add_field(ip_item, "IHL", f"{ihl}  ({ihl * 4} bytes)")
+            self._add_field(ip_item, "Longitud total", str(ipv4.get('total_length', 0)))
+            self._add_field(ip_item, "ID", f"0x{ipv4.get('identification', 0):04x}")
+            self._add_field(ip_item, "TTL", str(ipv4.get('ttl', 0)))
+            self._add_field(ip_item, "Protocolo", str(ipv4.get('protocol', 0)))
+            self._add_field(ip_item, "Checksum", f"0x{ipv4.get('checksum', 0):04x}")
+            self._add_field(ip_item, "Origen", src_ip)
+            self._add_field(ip_item, "Destino", dst_ip)
 
         # ── Capa TCP ──
         if packet.get('has_tcp'):
@@ -181,19 +180,17 @@ class DetailPanel(QWidget):
             tcp_item = QTreeWidgetItem(self._tree)
             tcp_item.setText(0, f"▸  TCP   :{sp} → :{dp}")
             tcp_item.setForeground(0, QColor(LAYER_COLORS['tcp']))
-            tcp_font = QFont("Segoe UI", 11)
-            tcp_font.setBold(True)
-            tcp_item.setFont(0, tcp_font)
+            tcp_item.setFont(0, self._bold_layer_font)
 
-            self._add_field(tcp_item, "Puerto origen", str(sp), mono_font)
-            self._add_field(tcp_item, "Puerto destino", str(dp), mono_font)
-            self._add_field(tcp_item, "Seq", str(tcp.get('seq_number', 0)), mono_font)
-            self._add_field(tcp_item, "Ack", str(tcp.get('ack_number', 0)), mono_font)
+            self._add_field(tcp_item, "Puerto origen", str(sp))
+            self._add_field(tcp_item, "Puerto destino", str(dp))
+            self._add_field(tcp_item, "Seq", str(tcp.get('seq_number', 0)))
+            self._add_field(tcp_item, "Ack", str(tcp.get('ack_number', 0)))
             flags_val = tcp.get('flags', 0)
             flags_str = self._decode_tcp_flags(flags_val)
-            self._add_field(tcp_item, "Flags", f"0x{flags_val:02x}  {flags_str}", mono_font)
-            self._add_field(tcp_item, "Window", str(tcp.get('window_size', 0)), mono_font)
-            self._add_field(tcp_item, "Checksum", f"0x{tcp.get('checksum', 0):04x}", mono_font)
+            self._add_field(tcp_item, "Flags", f"0x{flags_val:02x}  {flags_str}")
+            self._add_field(tcp_item, "Window", str(tcp.get('window_size', 0)))
+            self._add_field(tcp_item, "Checksum", f"0x{tcp.get('checksum', 0):04x}")
 
         # ── Capa UDP ──
         if packet.get('has_udp'):
@@ -203,14 +200,12 @@ class DetailPanel(QWidget):
             udp_item = QTreeWidgetItem(self._tree)
             udp_item.setText(0, f"▸  UDP   :{sp} → :{dp}")
             udp_item.setForeground(0, QColor(LAYER_COLORS['udp']))
-            udp_font = QFont("Segoe UI", 11)
-            udp_font.setBold(True)
-            udp_item.setFont(0, udp_font)
+            udp_item.setFont(0, self._bold_layer_font)
 
-            self._add_field(udp_item, "Puerto origen", str(sp), mono_font)
-            self._add_field(udp_item, "Puerto destino", str(dp), mono_font)
-            self._add_field(udp_item, "Longitud", str(udp.get('length', 0)), mono_font)
-            self._add_field(udp_item, "Checksum", f"0x{udp.get('checksum', 0):04x}", mono_font)
+            self._add_field(udp_item, "Puerto origen", str(sp))
+            self._add_field(udp_item, "Puerto destino", str(dp))
+            self._add_field(udp_item, "Longitud", str(udp.get('length', 0)))
+            self._add_field(udp_item, "Checksum", f"0x{udp.get('checksum', 0):04x}")
 
         # ── Capa ICMP ──
         if packet.get('has_icmp'):
@@ -218,9 +213,7 @@ class DetailPanel(QWidget):
             icmp_item = QTreeWidgetItem(self._tree)
             icmp_item.setText(0, "▸  ICMP   Internet Control Message Protocol")
             icmp_item.setForeground(0, QColor(LAYER_COLORS['icmp']))
-            icmp_font = QFont("Segoe UI", 11)
-            icmp_font.setBold(True)
-            icmp_item.setFont(0, icmp_font)
+            icmp_item.setFont(0, self._bold_layer_font)
 
         # ── Capa ARP ──
         if packet.get('has_arp'):
@@ -228,9 +221,7 @@ class DetailPanel(QWidget):
             arp_item = QTreeWidgetItem(self._tree)
             arp_item.setText(0, "▸  ARP   Address Resolution Protocol")
             arp_item.setForeground(0, QColor(LAYER_COLORS['arp']))
-            arp_font = QFont("Segoe UI", 11)
-            arp_font.setBold(True)
-            arp_item.setFont(0, arp_font)
+            arp_item.setFont(0, self._bold_layer_font)
 
         # Expandir todas las capas
         self._tree.expandAll()
@@ -246,10 +237,10 @@ class DetailPanel(QWidget):
         self._layer_count_label.setVisible(False)
         self._stack.setCurrentIndex(1)
 
-    def _add_field(self, parent: QTreeWidgetItem, name: str, value: str, font: QFont):
+    def _add_field(self, parent: QTreeWidgetItem, name: str, value: str):
         """Agrega un campo hijo al nodo padre con formato premium."""
         item = QTreeWidgetItem(parent)
-        item.setFont(0, font)
+        item.setFont(0, self._mono_font)
         # Formato: nombre en muted, valor en texto primario
         item.setText(0, f"  {name:<22} {value}")
         item.setForeground(0, QColor('#8892a8'))  # Color semántico de campo, coherente en ambos temas

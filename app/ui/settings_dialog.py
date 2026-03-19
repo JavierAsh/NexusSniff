@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QSettings, QSize
 from PyQt6.QtGui import QFont, QColor, QPalette, QIcon
 
-from app.main import load_theme
+
 from app.ui.icons import create_vector_icon
 from app import __version__
 
@@ -66,10 +66,14 @@ class SettingsDialog(QDialog):
         self.setMinimumSize(680, 520)
         self.resize(720, 540)
         self._settings = QSettings("NexusSniff", "NexusSniff")
+
+        # Guardar el tema original para poder revertir si el usuario cancela
+        self._original_theme = self._settings.value('theme', self.DEFAULTS['theme'])
+
         self._setup_ui()
         self._load_settings()
 
-        # Arrancar con el mismo tema activo
+        # Arrancar con el mismo tema activo (solo en el diálogo, no modificar app global)
         app = QApplication.instance()
         if app is not None:
             self.setStyleSheet(app.styleSheet())
@@ -468,9 +472,11 @@ class SettingsDialog(QDialog):
     # ───────────────────────────────────────────────────────────
 
     def _on_theme_changed(self, theme_text: str):
-        """Aplica el tema instantáneamente al cambiar la selección."""
+        """Aplica el tema SOLO al diálogo como preview (no toca la app global)."""
         theme_file = "light" if "Light Mode" in theme_text else "dark"
-        theme_content = load_theme(QApplication.instance(), theme_file)
+        # Cargar el contenido del tema sin aplicarlo a la QApplication
+        from app.main import _load_theme_content
+        theme_content = _load_theme_content(theme_file)
         self.setStyleSheet(theme_content)
         self.style().unpolish(self)
         self.style().polish(self)

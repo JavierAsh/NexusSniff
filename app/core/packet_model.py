@@ -1,13 +1,17 @@
 """
-packet_model.py — Modelo de tabla para paquetes capturados.
+packet_model.py — Modelo de tabla para paquetes capturados (zero-copy).
 
 QAbstractTableModel que alimenta el QTableView principal.
 Color-coded por protocolo para identificación visual rápida.
+
+Optimización v1.2: Los paquetes se almacenan como objetos PacketData
+de C++ (pybind11). Los atributos solo se leen bajo demanda (display),
+eliminando la creación masiva de dicts en el loop de captura.
 """
 
 from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex
 from PyQt6.QtGui import QColor, QFont
-from typing import List, Dict, Any
+from typing import List, Any
 
 
 # ══════════════════════════════════════════════════════════════
@@ -48,17 +52,25 @@ COLUMNS = [
 ]
 
 
+def _get_attr(packet, key, default=''):
+    """Lee un atributo de un PacketData C++ o un dict Python."""
+    if isinstance(packet, dict):
+        return packet.get(key, default)
+    return getattr(packet, key, default)
+
+
 class PacketTableModel(QAbstractTableModel):
     """
-    Modelo de tabla para paquetes de red.
+    Modelo de tabla para paquetes de red (soporta PacketData C++ y dicts).
 
     Soporta hasta ~100k paquetes en memoria con rendimiento fluido.
-    Los paquetes se almacenan como lista de dicts para flexibilidad.
+    Los paquetes pueden ser objetos PacketData de C++ (zero-copy) o
+    diccionarios Python (compatibilidad con exportación).
     """
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._packets: List[Dict[str, Any]] = []
+        self._packets: List[Any] = []
         self._first_timestamp: float = 0.0
         self._max_packets = 100_000
 
@@ -94,30 +106,38 @@ class PacketTableModel(QAbstractTableModel):
                 # Mostrar tiempo relativo desde el primer paquete
                 if self._first_timestamp == 0.0:
                     return "0.000000"
-                relative = packet.get('timestamp', 0) - self._first_timestamp
+                ts = _get_attr(packet, 'timestamp', 0)
+                relative = ts - self._first_timestamp
                 return f"{relative:.6f}"
             elif col_key == 'number':
-                return str(packet.get('number', ''))
+                return str(_get_attr(packet, 'number', ''))
             elif col_key == 'length':
-                return str(packet.get('length', ''))
+                return str(_get_attr(packet, 'length', ''))
             elif col_key == 'src_ip':
-                src = packet.get('src_ip', '')
-                port = packet.get('src_port', 0)
+                src = _get_attr(packet, 'src_ip_str' if not isinstance(packet, dict) else 'src_ip', '')
+                port = _get_attr(packet, 'src_port', 0)
                 if port and port > 0:
                     return f"{src}:{port}"
                 return src
             elif col_key == 'dst_ip':
-                dst = packet.get('dst_ip', '')
-                port = packet.get('dst_port', 0)
+                dst = _get_attr(packet, 'dst_ip_str' if not isinstance(packet, dict) else 'dst_ip', '')
+                port = _get_attr(packet, 'dst_port', 0)
                 if port and port > 0:
                     return f"{dst}:{port}"
                 return dst
+            elif col_key == 'protocol':
+                if isinstance(packet, dict):
+                    return str(packet.get('protocol', ''))
+                return str(getattr(packet, 'protocol_name', ''))
             else:
-                return str(packet.get(col_key, ''))
+                return str(_get_attr(packet, col_key, ''))
 
         elif role == Qt.ItemDataRole.ForegroundRole:
             # Color por protocolo
-            protocol = packet.get('protocol', 'Unknown')
+            if isinstance(packet, dict):
+                protocol = packet.get('protocol', 'Unknown')
+            else:
+                protocol = getattr(packet, 'protocol_name', 'Unknown')
             return PROTOCOL_COLORS.get(protocol, PROTOCOL_COLORS['Unknown'])
 
         elif role == Qt.ItemDataRole.FontRole:
@@ -132,19 +152,20 @@ class PacketTableModel(QAbstractTableModel):
                 return Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
 
         elif role == Qt.ItemDataRole.UserRole:
-            # Devolver el dict completo del paquete
+            # Devolver el objeto PacketData o dict completo
             return packet
 
         return None
 
-    def add_packets(self, packets: List[Dict[str, Any]]):
-        """Agrega nuevos paquetes al modelo."""
+    def add_packets(self, packets: list):
+        """Agrega nuevos paquetes al modelo (PacketData C++ o dicts)."""
         if not packets:
             return
 
         # Establecer timestamp base
         if self._first_timestamp == 0.0 and packets:
-            self._first_timestamp = packets[0].get('timestamp', 0.0)
+            first = packets[0]
+            self._first_timestamp = _get_attr(first, 'timestamp', 0.0)
 
         # Limitar el número total de paquetes en memoria
         if len(self._packets) + len(packets) > self._max_packets:
@@ -161,8 +182,8 @@ class PacketTableModel(QAbstractTableModel):
         self._packets.extend(packets)
         self.endInsertRows()
 
-    def get_packet(self, row: int) -> Dict[str, Any] | None:
-        """Obtiene un paquete por su fila."""
+    def get_packet(self, row: int):
+        """Obtiene un paquete por su fila (PacketData C++ o dict)."""
         if 0 <= row < len(self._packets):
             return self._packets[row]
         return None
