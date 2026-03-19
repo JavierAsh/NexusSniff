@@ -1103,3 +1103,39 @@ QLabel#emptyStateText {
     font-size: 13px;
     margin-top: 8px;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   THEME SELECTOR CARDS
+   ═══════════════════════════════════════════════════════════════ */
+
+QFrame#themeCard {
+    background-color: #161b2e;
+    border: 2px solid #2a3050;
+    border-radius: 10px;
+}
+
+QFrame#themeCard:hover {
+    border-color: rgba(13, 185, 242, 0.5);
+    background-color: #1c2238;
+}
+
+QFrame#themeCard[selected="true"] {
+    border-color: #0db9f2;
+    background-color: rgba(13, 185, 242, 0.08);
+}
+
+QLabel#themeCardName {
+    color: #8892a8;
+    font-size: 11px;
+    font-weight: 600;
+    background: transparent;
+}
+
+QFrame#themeCard[selected="true"] QLabel#themeCardName {
+    color: #0db9f2;
+}
+
+QLabel#themeCardImage {
+    background: transparent;
+}
+

@@ -130,7 +130,19 @@ class CapturePanel(QWidget):
 
         status_row.addStretch()
 
-        # Botón de scroll automático
+        # ── Estado de captura (Badge estable a la izquierda del botón de scroll) ──
+        self._capture_active_badge = QLabel("● CAPTURANDO")
+        self._capture_active_badge.setObjectName("captureActiveBadge")
+        # Mantener espacio ocupado (stable layout) pero ocultar visualmente al inicio
+        self._capture_active_badge.setStyleSheet("color: transparent; background: transparent; border: none;")
+        self._capture_active_badge.setFixedWidth(130)
+        self._capture_active_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._capture_active_badge.setProperty("dim", False)
+        status_row.addWidget(self._capture_active_badge)
+
+        status_row.addSpacing(12) # Separación clara entre indicador y botón
+
+        # ── Botón de scroll automático ──
         self._auto_scroll_btn = QPushButton("Auto-scroll: ON")
         self._auto_scroll_btn.setIcon(create_vector_icon("arrow_down", "#c8d0e0", 16))
         self._auto_scroll_btn.setObjectName("autoScrollBtn")
@@ -141,10 +153,6 @@ class CapturePanel(QWidget):
         self._auto_scroll_btn.clicked.connect(self._toggle_auto_scroll)
         status_row.addWidget(self._auto_scroll_btn)
 
-        self._capture_active_badge = QLabel("● CAPTURANDO")
-        self._capture_active_badge.setObjectName("captureActiveBadge")
-        self._capture_active_badge.setVisible(False)
-        status_row.addWidget(self._capture_active_badge)
         layout.addLayout(status_row)
 
         # Timer para animar el badge de captura
@@ -309,14 +317,19 @@ class CapturePanel(QWidget):
             ExportManager.export_json(packets, self)
 
     def _toggle_auto_scroll(self, checked: bool):
-        """Activa o desactiva el scroll automático."""
+        """Activa o desactiva el scroll automático y actualiza el botón."""
+        # Evitar ciclos o actualizaciones innecesarias si ya está en ese estado
+        # (aunque el botón ya lo controla por ser checkable, esto es más robusto)
         self._auto_scroll = checked
+        self._auto_scroll_btn.setChecked(checked)
         label = "Auto-scroll: ON" if checked else "Auto-scroll: OFF"
         self._auto_scroll_btn.setText(label)
-        # Al reactivar el autoscroll, liberar la fila seleccionada para que
-        # el scroll vuelva a funcionar inmediatamente con los nuevos paquetes.
+        
+        # Al reactivar el autoscroll, liberar selección para que se mueva con nuevos paquetes
         if checked:
             self._selected_row = -1
+            # Opcional: limpiar selección de la tabla para que se vea claro el seguimiento
+            self._table_view.clearSelection()
 
     def _on_filter_applied(self, expression: str):
         """Aplica el filtro BPF reiniciando la captura con la nueva expresión."""
@@ -370,7 +383,10 @@ class CapturePanel(QWidget):
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
         self._interface_combo.setEnabled(False)
-        self._capture_active_badge.setVisible(True)
+        
+        # Resetear estilo al default del QSS para que sea visible
+        self._capture_active_badge.setStyleSheet("")
+        self._capture_active_badge.setProperty("dim", False)
         self._badge_timer.start()
         self._last_stats = {}
 
@@ -379,29 +395,53 @@ class CapturePanel(QWidget):
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
         self._interface_combo.setEnabled(True)
-        self._capture_active_badge.setVisible(False)
+        
+        # Ocultar visualmente pero mantener en layout para evitar saltos
+        self._capture_active_badge.setStyleSheet("color: transparent; background: transparent; border: none;")
         self._badge_timer.stop()
 
     def _pulse_badge(self):
-        """Alterna la visibilidad del badge para efecto de pulso."""
-        self._capture_active_badge.setVisible(
-            not self._capture_active_badge.isVisible()
-        )
+        """Alterna el estilo del badge para efecto de pulso sin cambiar visibilidad (evita saltos)."""
+        is_dim = self._capture_active_badge.property("dim")
+        dim = not is_dim
+        self._capture_active_badge.setProperty("dim", dim)
+        
+        # Debemos repetir el diseño base (radius, padding) para no perderlo al sobreescribir con setStyleSheet
+        if dim:
+            # Estado atenuado — Manteniendo el diseño "píldora"
+            self._capture_active_badge.setStyleSheet(
+                "color: rgba(16, 185, 129, 0.4); "
+                "background: rgba(16, 185, 129, 0.05); "
+                "border: 1px solid rgba(16, 185, 129, 0.1); "
+                "border-radius: 10px; padding: 2px 10px;"
+            )
+        else:
+            # Estado brillante (revertir al QSS base del archivo dark/light.qss)
+            self._capture_active_badge.setStyleSheet("")
+
+        # Forzar re-lectura del estilo
+        self._capture_active_badge.style().unpolish(self._capture_active_badge)
+        self._capture_active_badge.style().polish(self._capture_active_badge)
+        self._capture_active_badge.update()
 
     def _on_table_clicked(self, index):
-        """Al hacer clic en la tabla, desactivar auto-scroll temporalmente."""
+        """Al hacer clic en la tabla, pausar autoscroll si estaba activo."""
         if index.isValid():
-            self._auto_scroll = False
-            self._auto_scroll_btn.setChecked(False)
-            self._auto_scroll_btn.setText("Auto-scroll: OFF")
+            if self._auto_scroll:
+                self._toggle_auto_scroll(False)
             self._show_packet_at_row(index.row())
 
     def _on_packet_selected(self, selected, deselected):
-        """Muestra el detalle del paquete seleccionado."""
+        """Muestra el detalle del paquete seleccionado y detiene autoscroll (clic o teclado)."""
         indexes = selected.indexes()
         if not indexes:
             return
+            
         row = indexes[0].row()
+        # Si el usuario navega (teclado) o selecciona, pausamos autoscroll para que pueda leer cómodamente
+        if self._auto_scroll:
+            self._toggle_auto_scroll(False)
+            
         self._show_packet_at_row(row)
 
     def _show_packet_at_row(self, row: int):

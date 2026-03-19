@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QFrame, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QSettings, QSize
-from PyQt6.QtGui import QFont, QColor, QPalette, QIcon
+from PyQt6.QtGui import QFont, QColor, QPalette, QIcon, QPixmap, QPainter, QPainterPath
 
 
 from app.ui.icons import create_vector_icon
@@ -43,6 +43,89 @@ class _SettingsSidebarBtn(QPushButton):
         self.setIconSize(QSize(18, 18))
         self.setText(text)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Helpers
+# ═══════════════════════════════════════════════════════════════
+
+def _rounded_pixmap(pixmap: QPixmap, radius: int) -> QPixmap:
+    """Devuelve un QPixmap con esquinas redondeadas usando clip de QPainterPath."""
+    size = pixmap.size()
+    result = QPixmap(size)
+    result.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(result)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+
+    path = QPainterPath()
+    path.addRoundedRect(0, 0, size.width(), size.height(), radius, radius)
+    painter.setClipPath(path)
+    painter.drawPixmap(0, 0, pixmap)
+    painter.end()
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Theme Card (selector visual de tema)
+# ═══════════════════════════════════════════════════════════════
+
+class _ThemeCard(QFrame):
+    """Tarjeta visual clickeable para seleccionar un tema."""
+
+    _CORNER_RADIUS = 7   # px — ligeramente menor que el borde del QFrame (10px)
+
+    def __init__(self, theme_name: str, preview_path: str, parent=None):
+        super().__init__(parent)
+        self.theme_name = theme_name
+        self._selected = False
+        self.setObjectName("themeCard")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedSize(220, 160)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(6, 6, 6, 8)
+        layout.setSpacing(6)
+
+        # Imagen de preview con esquinas redondeadas
+        self._img_label = QLabel()
+        self._img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._img_label.setObjectName("themeCardImage")
+        self._img_label.setScaledContents(False)
+
+        raw = QPixmap(preview_path)
+        if not raw.isNull():
+            scaled = raw.scaled(
+                208, 128,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+        else:
+            scaled = QPixmap(208, 128)
+            scaled.fill(QColor("#2a2a3e"))
+
+        self._img_label.setPixmap(_rounded_pixmap(scaled, self._CORNER_RADIUS))
+        layout.addWidget(self._img_label)
+
+        # Nombre del tema
+        self._name_label = QLabel(theme_name)
+        self._name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._name_label.setObjectName("themeCardName")
+        self._name_label.setFont(QFont("Segoe UI", 9, QFont.Weight.Medium))
+        layout.addWidget(self._name_label)
+
+    def set_selected(self, selected: bool):
+        self._selected = selected
+        self.setProperty("selected", selected)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.update()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            parent = self.parent()  # reservado para futura señal
+        super().mousePressEvent(event)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -213,23 +296,51 @@ class SettingsDialog(QDialog):
 
         # Tema
         group = QGroupBox("Apariencia")
-        form = QFormLayout(group)
-        form.setContentsMargins(16, 24, 16, 16)
-        form.setVerticalSpacing(14)
+        group_layout = QVBoxLayout(group)
+        group_layout.setContentsMargins(16, 24, 16, 20)
+        group_layout.setSpacing(12)
 
-        self._theme_combo = QComboBox()
-        self._theme_combo.addItems(["Dark Mode (Nexus)", "Light Mode"])
-        self._theme_combo.setToolTip(
-            "El tema se aplica de forma global.\n"
-            "Dark Mode: Fondo oscuro con acentos cyan.\n"
-            "Light Mode: Fondo claro para entornos iluminados."
-        )
-        self._theme_combo.currentTextChanged.connect(self._on_theme_changed)
-        form.addRow("Tema:", self._theme_combo)
+        hint = QLabel("Selecciona el tema haciendo clic en la imagen de referencia:")
+        hint.setObjectName("settingsSectionSubtitle")
+        group_layout.addWidget(hint)
+
+        # Contenedor de tarjetas
+        cards_row = QHBoxLayout()
+        cards_row.setSpacing(20)
+        cards_row.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        import os as _os
+        _res = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "resources")
+
+        self._theme_cards: list[_ThemeCard] = []
+        themes = [
+            ("Dark Mode (Nexus)",  _os.path.join(_res, "theme_dark_preview.png")),
+            ("Light Mode",         _os.path.join(_res, "theme_light_preview.png")),
+        ]
+        for theme_name, preview_path in themes:
+            card = _ThemeCard(theme_name, preview_path)
+            card.mousePressEvent = lambda e, c=card: self._select_theme_card(c)
+            self._theme_cards.append(card)
+            cards_row.addWidget(card)
+
+        cards_row.addStretch()
+        group_layout.addLayout(cards_row)
 
         layout.addWidget(group)
         layout.addStretch()
         return page
+
+    def _select_theme_card(self, selected_card: '_ThemeCard'):
+        """Selecciona la tarjeta de tema clicada y deselecciona las demás."""
+        for card in self._theme_cards:
+            card.set_selected(card is selected_card)
+
+    def _get_selected_theme(self) -> str:
+        """Devuelve el nombre del tema actualmente seleccionado."""
+        for card in self._theme_cards:
+            if card._selected:
+                return card.theme_name
+        return self.DEFAULTS['theme']
 
     def _build_capture_page(self) -> QWidget:
         page = QWidget()
@@ -470,18 +581,7 @@ class SettingsDialog(QDialog):
     # ───────────────────────────────────────────────────────────
     #  Tema
     # ───────────────────────────────────────────────────────────
-
-    def _on_theme_changed(self, theme_text: str):
-        """Aplica el tema SOLO al diálogo como preview (no toca la app global)."""
-        theme_file = "light" if "Light Mode" in theme_text else "dark"
-        # Cargar el contenido del tema sin aplicarlo a la QApplication
-        from app.main import _load_theme_content
-        theme_content = _load_theme_content(theme_file)
-        self.setStyleSheet(theme_content)
-        self.style().unpolish(self)
-        self.style().polish(self)
-        self.update()
-        self.repaint()
+    # (No hay preview en tiempo real — el tema se aplica al Guardar)
 
     # ───────────────────────────────────────────────────────────
     #  Persistencia
@@ -490,7 +590,7 @@ class SettingsDialog(QDialog):
     def get_settings(self) -> dict:
         """Devuelve la configuración actual."""
         return {
-            'theme': self._theme_combo.currentText(),
+            'theme': self._get_selected_theme(),
             'buffer_size': self._buffer_size_spin.value(),
             'snap_len': self._snap_len_spin.value(),
             'promiscuous': self._promiscuous_check.isChecked(),
@@ -500,9 +600,12 @@ class SettingsDialog(QDialog):
     def _load_settings(self):
         """Carga la configuración desde QSettings o usa defaults."""
         theme = self._settings.value('theme', self.DEFAULTS['theme'])
-        idx = self._theme_combo.findText(theme)
-        if idx >= 0:
-            self._theme_combo.setCurrentIndex(idx)
+        # Seleccionar la tarjeta correspondiente al tema guardado
+        for card in self._theme_cards:
+            card.set_selected(card.theme_name == theme)
+        # Si ninguna coincide, seleccionar la primera por defecto
+        if not any(c._selected for c in self._theme_cards) and self._theme_cards:
+            self._theme_cards[0].set_selected(True)
 
         self._buffer_size_spin.setValue(
             int(self._settings.value('buffer_size', self.DEFAULTS['buffer_size']))
@@ -520,9 +623,9 @@ class SettingsDialog(QDialog):
 
     def _reset_defaults(self):
         """Restablece todos los controles a los valores predeterminados."""
-        idx = self._theme_combo.findText(self.DEFAULTS['theme'])
-        if idx >= 0:
-            self._theme_combo.setCurrentIndex(idx)
+        default_theme = self.DEFAULTS['theme']
+        for card in self._theme_cards:
+            card.set_selected(card.theme_name == default_theme)
         self._buffer_size_spin.setValue(self.DEFAULTS['buffer_size'])
         self._snap_len_spin.setValue(self.DEFAULTS['snap_len'])
         self._promiscuous_check.setChecked(self.DEFAULTS['promiscuous'])
