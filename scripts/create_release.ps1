@@ -16,7 +16,7 @@ $ProjectRoot = (Get-Item $PSScriptRoot).Parent.FullName
 $ReleaseDir = Join-Path $ProjectRoot "release_build"
 $DistDir = Join-Path $ProjectRoot "dist"
 $DistAppDir = Join-Path $DistDir "NexusSniff"
-$ReleaseZip = Join-Path $ProjectRoot "NexusSniff_v1.3.0.zip"
+$ReleaseZip = Join-Path $ProjectRoot "NexusSniff_v1.4.0-beta.1.zip"
 
 Write-Host "Preparando release comercial (Ejecutable) para NexusSniff..." -ForegroundColor Cyan
 

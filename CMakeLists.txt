@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
-project(NexusSniff VERSION 1.3.0 LANGUAGES CXX)
+project(NexusSniff VERSION 1.4.0 LANGUAGES CXX)
+# Nota: v1.4.0-beta.1 (CMake no soporta suffixes en VERSION)
 
 # ══════════════════════════════════════════════════════════════
 # Estándar C++20

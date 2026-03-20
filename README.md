@@ -1,4 +1,4 @@
-# 🔍 NexusSniff v1.3.0
+# 🔍 NexusSniff v1.4.0-beta.1
 
 NexusSniff es un analizador de paquetes de red diseñado para la interceptación y el diagnóstico profundo de tráfico en tiempo real. Esta herramienta permite desglosar la estructura de los datos que circulan por la interfaz de red, facilitando la identificación de protocolos, la detección de anomalías y el estudio del flujo de información en entornos de sistemas distribuidos o redes complejas.
 
@@ -15,7 +15,7 @@ NexusSniff es un analizador de paquetes de red diseñado para la interceptación
 
 Para iniciar rápidamente usando los binarios pre-compilados:
 
-1. Descarga el último release (`NexusSniff_v1.3.0.zip`) desde GitHub.
+1. Descarga el último release (`NexusSniff_v1.4.0-beta.1.zip`) desde GitHub.
 2. Descomprime el archivo en cualquier ubicación.
 3. Ejecuta el archivo en PowerShell o haz doble clic:
 
@@ -72,7 +72,7 @@ NexusSniff/
 
 ## Variables de Entorno
 
-Actualmente, **NexusSniff v1.3.0** está diseñado para ejecutarse sin depender de variables de entorno globales. La configuración del compilador la gestionan los scripts de CMake (`CMakeLists.txt`) o el script de PowerShell (`\scripts\build_engine.ps1`), ubicando el SDK de Npcap mediante rutas relativas o especificándolas si difieren del estándar:
+Actualmente, **NexusSniff v1.4.0-beta.1** está diseñado para ejecutarse sin depender de variables de entorno globales. La configuración del compilador la gestionan los scripts de CMake (`CMakeLists.txt`) o el script de PowerShell (`\scripts\build_engine.ps1`), ubicando el SDK de Npcap mediante rutas relativas o especificándolas si difieren del estándar:
 
 | Variable | Descripción | Ejemplo | Requerida |
 | :--- | :--- | :--- | :--- |

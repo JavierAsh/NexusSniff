@@ -1,10 +1,10 @@
 @echo off
 REM ═══════════════════════════════════════════════════════════════
-REM  NexusSniff v1.3.0 — Script de Lanzamiento
+REM  NexusSniff v1.4.0-beta.1 — Script de Lanzamiento
 REM  Detecta automáticamente el entorno Python correcto
 REM ═══════════════════════════════════════════════════════════════
 
-title NexusSniff v1.3.0
+title NexusSniff v1.4.0-beta.1
 
 set MSYS2_PYTHON=C:\msys64\mingw64\bin\python.exe
 set VENV_PYTHON=%~dp0.venv\Scripts\python.exe
@@ -17,7 +17,7 @@ echo  ██╔██╗ ██║█████╗   ╚███╔╝ ██
 echo  ██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║
 echo  ██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║
 echo  ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
-echo           Network Packet Analyzer v1.3.0
+echo           Network Packet Analyzer v1.4.0-beta.1
 echo.
 
 REM Verificar que el motor C++ esté compilado

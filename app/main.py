@@ -95,7 +95,7 @@ def main():
 
     app = QApplication(sys.argv)
     app.setApplicationName("NexusSniff")
-    app.setApplicationVersion("1.3.0")
+    app.setApplicationVersion("1.4.0-beta.1")
     app.setOrganizationName("NexusSniff")
 
     # Instalar crash reporter global (antes de todo lo demás)
