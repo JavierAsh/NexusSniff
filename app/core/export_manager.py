@@ -51,14 +51,21 @@ class ExportManager:
 
     @staticmethod
     def export_pcap(packets: List[Dict[str, Any]], parent: QWidget = None) -> bool:
-        """
-        Exporta paquetes al formato PCAP estándar (compatible Wireshark).
+        """Exporta paquetes al formato PCAP estándar (compatible Wireshark o tshark).
 
-        El formato es:
-          - Global header (24 bytes)
-          - Por cada paquete: record header (16 bytes) + datos raw
+        El formato interno de salida incluye:
+          - Global header (24 bytes): Magic number, versión, snaplen.
+          - Por cada paquete: Record header (16 bytes) + datos crudos originales.
 
-        No requiere dependencias externas — usa únicamente struct.pack.
+        No requiere dependencias externas; utiliza `struct.pack` de biblioteca estándar.
+
+        Args:
+            packets (list): Lista de diccionarios de paquetes capturados a exportar.
+            parent (QWidget, optional): Instancia del widget padre para anclar el UI de diálogo. Defaults to None.
+
+        Returns:
+            bool: `True` si la exportación finalizó correctamente, `False` si el 
+            usuario canceló o si hubo un error de escritura.
         """
         filepath, _ = QFileDialog.getSaveFileName(
             parent, "Exportar captura como PCAP",
@@ -138,7 +145,15 @@ class ExportManager:
 
     @staticmethod
     def export_csv(packets: List[Dict[str, Any]], parent: QWidget = None) -> bool:
-        """Exporta paquetes a archivo CSV."""
+        """Exporta una vista en tabla plana de los paquetes a formato CSV demarcado por comas.
+        
+        Args:
+            packets (list): Lista de paquetes capturados a exportar.
+            parent (QWidget, optional): Widget base para el QFileDialog. Defaults to None.
+            
+        Returns:
+            bool: `True` en caso de éxito, `False` en caso contrario.
+        """
         filepath, _ = QFileDialog.getSaveFileName(
             parent, "Exportar captura como CSV",
             f"captura_nexussniff_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
@@ -167,7 +182,18 @@ class ExportManager:
 
     @staticmethod
     def export_json(packets: List[Dict[str, Any]], parent: QWidget = None) -> bool:
-        """Exporta paquetes a archivo JSON."""
+        """Convierte y guarda la captura entera a un archivo JSON.
+        
+        Automáticamente filtra los datos binarios crudos (`raw_data`) para prevenir 
+        errores de serialización durante el proceso `json.dump`.
+        
+        Args:
+            packets (list): Lista tabular de datos de paquetes.
+            parent (QWidget, optional): Widget padre para el UI. Defaults to None.
+            
+        Returns:
+            bool: Indicador booleano de éxito de la operación.
+        """
         filepath, _ = QFileDialog.getSaveFileName(
             parent, "Exportar captura como JSON",
             f"captura_nexussniff_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
@@ -199,7 +225,23 @@ class ExportManager:
         stats: Dict[str, Any] = None,
         parent: QWidget = None
     ) -> bool:
-        """Exporta paquetes a Excel (.xlsx) con múltiples hojas estructuradas."""
+        """Exporta la captura local a un libro de Excel (.xlsx) estructurado en pestañas.
+        
+        Crea 3 hojas dedicadas:
+        1. Resumen: Tablas de meta-estadísticas (paquetes por sec, distribución, etc).
+        2. Paquetes: Lista de paquetes capturados estilizados con colores por protocolo.
+        3. Protocolos: Análisis y gráficos porcentuales de la distribución.
+        
+        Requiere la librería de terceros `openpyxl`.
+        
+        Args:
+            packets (list): Paquetes para exportar e iterar.
+            stats (dict, optional): Estadística global proporcionada por el engine de captura. Defaults to None.
+            parent (QWidget, optional): Instancia interfaz padre para mensajes. Defaults to None.
+            
+        Returns:
+            bool: `True` tras un guardado de Excel satisfactorio, o `False` tras error / cancelación.
+        """
         try:
             import openpyxl
             from openpyxl.styles import (

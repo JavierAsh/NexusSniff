@@ -69,7 +69,12 @@ class DatabaseManager:
     # ─────────────────────────────────────────────────────
 
     def connect_postgres(self) -> bool:
-        """Conecta a PostgreSQL."""
+        """Establece conexión con la base de datos PostgreSQL principal.
+        
+        Returns:
+            bool: `True` si la conexión y la configuración inicial de esquemas
+            tiene éxito, `False` en caso contrario.
+        """
         try:
             import psycopg2
             cfg = self._config['postgres']
@@ -89,7 +94,12 @@ class DatabaseManager:
             return False
 
     def connect_clickhouse(self) -> bool:
-        """Conecta a ClickHouse."""
+        """Establece conexión a la base de datos analítica ClickHouse.
+        
+        Returns:
+            bool: `True` si conecta e inicializa los esquemas correctamente,
+            `False` si ocurre un error de red o de cliente.
+        """
         try:
             from clickhouse_driver import Client
             cfg = self._config['clickhouse']
@@ -108,7 +118,11 @@ class DatabaseManager:
             return False
 
     def connect_redis(self) -> bool:
-        """Conecta a Redis."""
+        """Establece conexión al motor de memoria Redis.
+        
+        Returns:
+            bool: `True` tras un 'ping' exitoso o `False` si el servidor es inaccesible.
+        """
         try:
             import redis
             cfg = self._config['redis']
@@ -187,7 +201,9 @@ class DatabaseManager:
     # ─────────────────────────────────────────────────────
 
     def start_async_flush(self):
-        """Inicia el hilo de flush asíncrono para ClickHouse."""
+        """Inicia el hilo (`threading.Thread`) que vacía asíncronamente los 
+        baches de paquetes almacenados hacia ClickHouse, evitando bloqueos.
+        """
         if self._flush_running:
             return
         self._flush_running = True
@@ -200,7 +216,9 @@ class DatabaseManager:
         logger.info("Hilo de flush asíncrono iniciado")
 
     def stop_async_flush(self):
-        """Detiene el hilo de flush y procesa los pendientes."""
+        """Envía señal para detener el hilo de flush, forzando la subida de los
+        últimos paquetes en cola y esperando (join) su finalización segura.
+        """
         self._flush_running = False
         if self._flush_thread and self._flush_thread.is_alive():
             # Enviar sentinel para despertar el hilo
@@ -209,7 +227,13 @@ class DatabaseManager:
             logger.info("Hilo de flush asíncrono detenido")
 
     def enqueue_packets(self, session_id: str, packets: List[Dict[str, Any]]):
-        """Encola un batch de paquetes para flush asíncrono."""
+        """Agrega de manera thread-safe un conjunto de paquetes procesados a la cola
+        de flush en disco (ClickHouse). 
+        
+        Args:
+            session_id (str): Identificador UUID de la sesión de captura.
+            packets (list): Lista de diccionarios representando los paquetes capturados.
+        """
         if not self._flush_running:
             return
         try:
@@ -276,7 +300,9 @@ class DatabaseManager:
     # ─────────────────────────────────────────────────────
 
     def close(self):
-        """Cierra todas las conexiones y detiene el flush."""
+        """Cierra el pool asíncrono y finaliza correctamente todas las
+        conexiones activas a PostgreSQL, ClickHouse y Redis.
+        """
         self.stop_async_flush()
         if self._pg_conn:
             try:

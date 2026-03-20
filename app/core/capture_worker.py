@@ -20,7 +20,18 @@ logger = logging.getLogger(__name__)
 
 
 def packet_to_dict(pkt) -> dict:
-    """Convierte un PacketData C++ a dict Python — solo bajo demanda."""
+    """Convierte un objeto PacketData C++ a un diccionario Python bajo demanda.
+    
+    Esta función es necesaria para módulos que requieren datos serializables (como
+    vistas detalle, o exportación a JSON/Excel). Solamente decodifica capas (Ethernet,
+    IPv4, TCP, UDP, etc.) que están explícitamente presentes.
+    
+    Args:
+        pkt (PacketData): Objeto C++ devuelto por el motor de captura de NexusSniff.
+        
+    Returns:
+        dict: Diccionario estructurado con la información completa del paquete.
+    """
     packet_dict = {
         'number':       pkt.number,
         'timestamp':    pkt.timestamp,
@@ -116,7 +127,12 @@ class CaptureWorker(QThread):
         self._is_running = False
 
     def configure(self, interface_name: str, bpf_filter: str = ""):
-        """Configura la interfaz y filtro antes de iniciar."""
+        """Configura la interfaz destino y un filtro BPF opcional antes de iniciar.
+        
+        Args:
+            interface_name (str): Nombre de la interfaz del sistema operativo (e.g. '\\Device\\NPF_{...}').
+            bpf_filter (str, optional): Expresión de Berkeley Packet Filter. Defaults to "".
+        """
         self._interface_name = interface_name
         self._bpf_filter = bpf_filter
 
@@ -125,7 +141,12 @@ class CaptureWorker(QThread):
         return self._is_running
 
     def run(self):
-        """Loop principal del hilo de captura — zero-copy optimizado."""
+        """Método de ejecución principal del hilo de captura en segundo plano.
+        
+        Importa el módulo en C++ (`app.nexus_engine`), inicializa el capturador 
+        y mantiene un bucle optimizado de obtención de paquetes mediante zero-copy.
+        Controla los intervalos de emisión de señales para evitar saturar la GUI.
+        """
         try:
             # Importar el módulo C++ compilado
             try:
@@ -214,7 +235,7 @@ class CaptureWorker(QThread):
             self.capture_stopped.emit()
 
     def stop_capture(self):
-        """Solicita detener la captura de forma segura."""
+        """Solicita detener la captura de red y liberar los recursos del motor."""
         self._is_running = False
         if self._capturer:
             try:

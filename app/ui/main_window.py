@@ -51,7 +51,10 @@ class SidebarButton(QPushButton):
 
 
 class Sidebar(QWidget):
-    """Sidebar vertical con navegación por iconos vectoriales + labels pequeños."""
+    """Barra lateral izquierda (Sidebar) vertical que provee navegación 
+    entre las diferentes vistas principales. Utiliza iconos vectoriales 
+    estilizados y etiquetas inferiores auto-ajustables.
+    """
 
     SIDEBAR_WIDTH = 80
 
@@ -124,13 +127,21 @@ class Sidebar(QWidget):
         layout.addWidget(self.settings_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
     def set_active(self, button: SidebarButton):
-        """Marca un botón como activo y desmarca los demás."""
+        """Marca de manera exclusiva (estilo radio-button lógico) un botón en el menú izquierdo.
+        
+        Args:
+            button (SidebarButton): Referencia al Widget de botón a marcar activo.
+        """
         for btn in self.buttons:
             btn.setChecked(btn == button)
 
 
 class MainWindow(QMainWindow):
-    """Ventana principal de NexusSniff."""
+    """Frame y ventana principal de la interfaz de NexusSniff (`QApplication`).
+    
+    Gestiona la orquestación del Sidebar, las pantallas apiladas (Dashboard, Captura)
+    y barra de estado utilizando widgets dinámicos y transiciones con animaciones (fade).
+    """
 
     def __init__(self):
         super().__init__()
@@ -313,7 +324,7 @@ class MainWindow(QMainWindow):
         statusbar.addWidget(self._status_pps_container)
 
         # Versión a la derecha
-        version_label = QLabel("NexusSniff v1.2.0")
+        version_label = QLabel("NexusSniff v1.3.0")
         version_label.setObjectName("statusVersion")
         statusbar.addPermanentWidget(version_label)
 

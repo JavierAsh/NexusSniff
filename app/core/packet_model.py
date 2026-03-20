@@ -158,7 +158,15 @@ class PacketTableModel(QAbstractTableModel):
         return None
 
     def add_packets(self, packets: list):
-        """Agrega nuevos paquetes al modelo (PacketData C++ o dicts)."""
+        """Agrega nuevos paquetes al modelo (PacketData C++ o dicts).
+        
+        Maneja internamente la lógica para calcular timestamps relativos al 
+        primer paquete capturado y expulsa los elementos más antiguos si se
+        alcanza el límite de memoria del buffer (`_max_packets`).
+        
+        Args:
+            packets (list): Lista de objetos PacketData o diccionarios a insertar.
+        """
         if not packets:
             return
 
@@ -183,18 +191,32 @@ class PacketTableModel(QAbstractTableModel):
         self.endInsertRows()
 
     def get_packet(self, row: int):
-        """Obtiene un paquete por su fila (PacketData C++ o dict)."""
+        """Obtiene un paquete por su fila (PacketData C++ o dict).
+        
+        Args:
+            row (int): Índice cero de la fila (paquete) solicitado.
+            
+        Returns:
+            Any: Objeto PacketData (de C++) o dict, o `None` si la fila no es válida.
+        """
         if 0 <= row < len(self._packets):
             return self._packets[row]
         return None
 
     def clear(self):
-        """Limpia todos los paquetes."""
+        """Limpia todos los paquetes almacenados y resetea el modelo Qt.
+        
+        Restaura el timestamp base a cero.
+        """
         self.beginResetModel()
         self._packets.clear()
         self._first_timestamp = 0.0
         self.endResetModel()
 
     def packet_count(self) -> int:
-        """Número total de paquetes en el modelo."""
+        """Número total de paquetes actual en el modelo.
+        
+        Returns:
+            int: Cantidad de paquetes presentes.
+        """
         return len(self._packets)

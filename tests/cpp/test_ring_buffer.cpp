@@ -37,21 +37,21 @@ TEST_CASE("Ring buffer: operaciones básicas", "[ringbuffer]") {
         pkt.length = 100;
         pkt.protocol = ProtocolType::TCP;
 
-        bool pushed = buffer.try_push(pkt);
+        bool pushed = buffer.try_push(std::move(pkt));
         REQUIRE(pushed);
         REQUIRE(buffer.size() == 1);
 
-        PacketData out;
-        bool popped = buffer.try_pop(out);
+        auto out_opt = buffer.try_pop();
+        bool popped = out_opt.has_value();
         REQUIRE(popped);
-        REQUIRE(out.number == 1);
-        REQUIRE(out.length == 100);
+        REQUIRE(out_opt->number == 1);
+        REQUIRE(out_opt->length == 100);
         REQUIRE(buffer.empty());
     }
 
     SECTION("Pop de buffer vacío falla") {
-        PacketData out;
-        bool popped = buffer.try_pop(out);
+        auto out_opt = buffer.try_pop();
+        bool popped = out_opt.has_value();
         REQUIRE_FALSE(popped);
     }
 
@@ -61,12 +61,12 @@ TEST_CASE("Ring buffer: operaciones básicas", "[ringbuffer]") {
         for (uint32_t i = 0; i < 3; ++i) {
             PacketData pkt;
             pkt.number = i;
-            REQUIRE(small_buf.try_push(pkt));
+            REQUIRE(small_buf.try_push(std::move(pkt)));
         }
         // Buffer lleno (capacity - 1 elementos en SPSC)
         PacketData overflow_pkt;
         overflow_pkt.number = 999;
-        bool pushed = small_buf.try_push(overflow_pkt);
+        bool pushed = small_buf.try_push(std::move(overflow_pkt));
         REQUIRE_FALSE(pushed);
     }
 }
@@ -79,7 +79,7 @@ TEST_CASE("Ring buffer: batch pop", "[ringbuffer]") {
         PacketData pkt;
         pkt.number = i;
         pkt.protocol = ProtocolType::TCP;
-        buffer.try_push(pkt);
+        buffer.try_push(std::move(pkt));
     }
 
     SECTION("Pop de batch parcial") {
@@ -109,8 +109,10 @@ TEST_CASE("Ring buffer: concurrencia SPSC", "[ringbuffer][threading]") {
             PacketData pkt;
             pkt.number = static_cast<uint32_t>(i);
             pkt.length = 64;
-            while (!buffer.try_push(pkt)) {
+            while (!buffer.try_push(std::move(pkt))) {
                 std::this_thread::yield();
+                pkt.number = static_cast<uint32_t>(i); // Restore pkt content for retry
+                pkt.length = 64;
             }
             produced.fetch_add(1);
         }

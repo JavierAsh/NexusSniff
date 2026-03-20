@@ -56,18 +56,30 @@ public:
 
     /**
      * @brief Enumera todas las interfaces de red disponibles en el sistema.
-     * @return Vector de interfaces con nombre, descripción y direcciones
-     * @throws std::runtime_error si Npcap no está instalado
+     * 
+     * @return {std::vector<NetworkInterface>} Vector de interfaces con nombre, descripción y direcciones.
+     * @throws {std::runtime_error} Si el servicio Npcap no está instalado o en ejecución.
+     * 
+     * @example
+     * std::vector<NetworkInterface> devs = PacketCapturer::list_interfaces();
+     * for (const auto& dev : devs) { std::cout << dev.name; }
      */
     static std::vector<NetworkInterface> list_interfaces();
 
     /**
-     * @brief Inicia la captura de paquetes en una interfaz.
-     * @param interface_name Nombre de la interfaz (de list_interfaces())
-     * @param bpf_filter Filtro BPF opcional (ej: "tcp port 80")
-     * @param snap_len Bytes máximos a capturar por paquete
-     * @param buffer_size Tamaño del ring buffer (paquetes)
-     * @return true si la captura se inició correctamente
+     * @brief Inicia la captura de paquetes en una interfaz específica.
+     * 
+     * @param {std::string} interface_name Nombre de la interfaz (devuelto por list_interfaces()).
+     * @param {std::string} bpf_filter Filtro de Berkeley Packet Filter opcional.
+     * @param {int} snap_len Cantidad máxima de bytes a capturar por paquete.
+     * @param {std::size_t} buffer_size Tamaño del ring buffer en paquetes.
+     * 
+     * @return {bool} `true` si la captura inició exitosamente con el hilo levantado.
+     * @throws {std::invalid_argument} Si el nombre de la interfaz está vacío.
+     * 
+     * @example
+     * PacketCapturer cap;
+     * cap.start("\\Device\\NPF_{...}", "tcp port 80", 65535, 10000);
      */
     bool start(
         const std::string& interface_name,
@@ -77,7 +89,12 @@ public:
     );
 
     /**
-     * @brief Detiene la captura activa.
+     * @brief Detiene la captura activa de forma segura.
+     * 
+     * Finaliza el hilo de captura y cierra el handle de Npcap. No lanza excepciones.
+     * 
+     * @example
+     * cap.stop();
      */
     void stop();
 
@@ -87,9 +104,14 @@ public:
     [[nodiscard]] bool is_capturing() const;
 
     /**
-     * @brief Obtiene paquetes del ring buffer (batch).
-     * @param max_count Máximo de paquetes a obtener
-     * @return Vector de paquetes decodificados
+     * @brief Extrae un lote de paquetes decodificados desde el ring buffer.
+     * 
+     * @param {std::size_t} max_count Cantidad máxima de paquetes a extraer en esta llamada.
+     * @return {std::vector<PacketData>} Vector que contiene entre 0 y `max_count` paquetes.
+     * 
+     * @example
+     * auto batch = cap.get_packets(500);
+     * for (const auto& pkt : batch) { process(pkt); }
      */
     std::vector<PacketData> get_packets(std::size_t max_count = 256);
 
